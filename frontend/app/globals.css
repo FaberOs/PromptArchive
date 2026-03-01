@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+/* Default (Light - Warm Cream) */
+:root {
+  --background: #fdfbf7;
+  --foreground: #1e293b;
+}
+
+/* Dark Mode - Warmer & lighter for better readability */
+.dark {
+  --background: #141b2d;
+  --foreground: #e2e8f0;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@utility text-balance {
+  text-wrap: balance;
+}
+
+/* Global cursor-pointer for interactive elements */
+button,
+[role="button"],
+a,
+label[class*="cursor-pointer"],
+select,
+summary,
+[type="checkbox"],
+[type="radio"] {
+  cursor: pointer;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #2d3a52;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3d4f6f;
+}
+
+/* Scrollbar-none utility */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Focus ring improvement */
+*:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Smooth page transitions */
+main {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Selection color */
+::selection {
+  background: #3b82f6;
+  color: white;
+}
+
+.dark ::selection {
+  background: #60a5fa;
+  color: #0f172a;
+}
