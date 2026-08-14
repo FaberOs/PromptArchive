@@ -58,3 +58,8 @@ Desktop.ini
 *.tsbuildinfo
 .vercel
 coverage/
+
+# === Electron desktop ===
+# Electron source code is not versioned; only the release (installer) in /release/
+/electron/
+/release/win-unpacked/
