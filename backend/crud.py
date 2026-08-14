@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import and_, func, or_
 from typing import Optional
 from . import models, schemas
 
@@ -29,6 +29,41 @@ def inject_variant_count_many(prompts: list[models.Prompt]) -> list[models.Promp
     for p in prompts:
         inject_variant_count(p)
     return prompts
+
+
+def prompt_is_private(prompt: models.Prompt) -> bool:
+    """Return whether a prompt or its containing folder needs private access."""
+
+    folder = prompt.folder
+    return bool(
+        prompt.is_nsfw
+        or prompt.is_hidden
+        or (folder is not None and (folder.is_nsfw or folder.is_hidden))
+    )
+
+
+def bulk_selection_is_private(
+    db: Session,
+    prompt_ids: list[int],
+    folder_ids: list[int],
+) -> bool:
+    prompts = (
+        db.query(models.Prompt)
+        .filter(models.Prompt.id.in_(prompt_ids))
+        .all()
+        if prompt_ids
+        else []
+    )
+    folders = (
+        db.query(models.Folder)
+        .filter(models.Folder.id.in_(folder_ids))
+        .all()
+        if folder_ids
+        else []
+    )
+    return any(prompt_is_private(prompt) for prompt in prompts) or any(
+        folder.is_nsfw or folder.is_hidden for folder in folders
+    )
 
 def get_category_by_name(db: Session, name: str) -> Optional[models.Category]:
     return db.query(models.Category).filter(models.Category.name == name).first()
@@ -60,6 +95,7 @@ def create_prompt(db: Session, prompt: schemas.PromptCreate) -> models.Prompt:
         negative_prompt=prompt.negative_prompt or "",
         meta_json=prompt.meta_json,
         is_nsfw=prompt.is_nsfw,
+        is_hidden=prompt.is_hidden,
         prompt_type=prompt.prompt_type,
         parent_id=prompt.parent_id,
         folder_id=prompt.folder_id
@@ -97,13 +133,51 @@ def create_prompt(db: Session, prompt: schemas.PromptCreate) -> models.Prompt:
     db.refresh(db_prompt)
     return db_prompt
 
-def get_prompts(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None, is_nsfw: bool = False, folder_id: Optional[int] = None, categories: Optional[list[str]] = None, show_hidden: bool = False) -> tuple[list[models.Prompt], int]:
+def get_prompts(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    is_nsfw: bool = False,
+    folder_id: Optional[int] = None,
+    categories: Optional[list[str]] = None,
+    show_hidden: bool = False,
+    only_hidden: bool = False,
+    prompt_type: Optional[str] = None,
+    tag: Optional[str] = None,
+    sort: str = "newest",
+) -> tuple[list[models.Prompt], int]:
     # Base query: NSFW filter and Exclude Variants (parent_id is None)
     query = db.query(models.Prompt).filter(models.Prompt.is_nsfw == is_nsfw, models.Prompt.parent_id == None)
+
+    # A folder can be hidden independently from its prompts.  Its contents
+    # must not become discoverable through a guessed folder_id.
+    query = query.filter(
+        or_(
+            models.Prompt.folder_id == None,
+            models.Prompt.folder.has(models.Folder.is_nsfw == is_nsfw),
+        )
+    )
     
     # Hidden filter
-    if not show_hidden:
-        query = query.filter(models.Prompt.is_hidden == False)
+    if only_hidden:
+        query = query.filter(models.Prompt.is_hidden == True)
+    elif not show_hidden:
+        query = query.filter(
+            models.Prompt.is_hidden == False,
+            or_(
+                models.Prompt.folder_id == None,
+                models.Prompt.folder.has(models.Folder.is_hidden == False),
+            ),
+        )
+
+    if prompt_type:
+        query = query.filter(models.Prompt.prompt_type == prompt_type)
+
+    if tag:
+        query = query.filter(
+            models.Prompt.tags.any(func.lower(models.Tag.name) == tag.strip().lower())
+        )
     
     # Folder Filter
     if folder_id is not None:
@@ -130,11 +204,23 @@ def get_prompts(db: Session, skip: int = 0, limit: int = 100, search: Optional[s
             query = query.filter(models.Prompt.categories.any(models.Category.name == cat_name))
     
     total = query.count()
-    items = query.order_by(models.Prompt.created_at.desc()).offset(skip).limit(limit).all()
+    order_by = {
+        "oldest": models.Prompt.created_at.asc(),
+        "title_asc": models.Prompt.title.asc(),
+        "title_desc": models.Prompt.title.desc(),
+    }.get(sort, models.Prompt.created_at.desc())
+    items = query.order_by(order_by, models.Prompt.id.desc()).offset(skip).limit(limit).all()
     return items, total
 
-def get_prompt(db: Session, prompt_id: int) -> Optional[models.Prompt]:
-    return db.query(models.Prompt).filter(models.Prompt.id == prompt_id).first()
+def get_prompt(
+    db: Session,
+    prompt_id: int,
+    include_hidden: bool = True,
+) -> Optional[models.Prompt]:
+    query = db.query(models.Prompt).filter(models.Prompt.id == prompt_id)
+    if not include_hidden:
+        query = query.filter(models.Prompt.is_hidden == False)
+    return query.first()
 
 def delete_prompt(db: Session, prompt_id: int) -> bool:
     prompt = get_prompt(db, prompt_id)
@@ -145,59 +231,102 @@ def delete_prompt(db: Session, prompt_id: int) -> bool:
         return True
     return False
 
-def get_prompt_variants(db: Session, prompt_id: int) -> list[models.Prompt]:
-    return db.query(models.Prompt).filter(models.Prompt.parent_id == prompt_id).all()
+def get_prompt_variants(
+    db: Session,
+    prompt_id: int,
+    include_hidden: bool = True,
+    include_nsfw: bool = True,
+) -> list[models.Prompt]:
+    query = db.query(models.Prompt).filter(models.Prompt.parent_id == prompt_id)
+    if not include_hidden:
+        query = query.filter(models.Prompt.is_hidden == False)
+    if not include_nsfw:
+        query = query.filter(
+            models.Prompt.is_nsfw == False,
+            or_(
+                models.Prompt.folder_id == None,
+                models.Prompt.folder.has(
+                    and_(
+                        models.Folder.is_nsfw == False,
+                        models.Folder.is_hidden == False,
+                    )
+                ),
+            ),
+        )
+    return query.all()
 
 def update_prompt(db: Session, prompt_id: int, prompt_data: schemas.PromptUpdate) -> Optional[models.Prompt]:
     db_prompt = get_prompt(db, prompt_id)
     if not db_prompt:
         return None
 
-    # 1. Update basic fields
-    db_prompt.title = prompt_data.title
-    db_prompt.description = prompt_data.description
-    db_prompt.negative_prompt = prompt_data.negative_prompt or ""
-    db_prompt.meta_json = prompt_data.meta_json
-    db_prompt.is_nsfw = prompt_data.is_nsfw
-    db_prompt.prompt_type = prompt_data.prompt_type
+    fields = prompt_data.model_fields_set
+
+    # 1. Update only fields present in the request. PromptUpdate is also used
+    # by integrations that send a partial PUT payload.
+    if "title" in fields:
+        db_prompt.title = prompt_data.title
+    if "description" in fields:
+        db_prompt.description = prompt_data.description
+    if "negative_prompt" in fields:
+        db_prompt.negative_prompt = prompt_data.negative_prompt or ""
+    if "meta_json" in fields:
+        db_prompt.meta_json = prompt_data.meta_json
+    if "is_nsfw" in fields:
+        db_prompt.is_nsfw = prompt_data.is_nsfw
+    if "is_hidden" in prompt_data.model_fields_set:
+        db_prompt.is_hidden = bool(prompt_data.is_hidden)
+    if "prompt_type" in fields:
+        db_prompt.prompt_type = prompt_data.prompt_type
     
-    # Handle folder move if provided (optional)
-    if prompt_data.folder_id is not None:
-        # If 0, set to None (Root)
-        if prompt_data.folder_id == 0:
-            db_prompt.folder_id = None
-        else:
-            db_prompt.folder_id = prompt_data.folder_id
+    # An omitted folder_id preserves the current folder; explicit null/0 moves
+    # the prompt to the root.
+    if "folder_id" in prompt_data.model_fields_set:
+        db_prompt.folder_id = (
+            None if prompt_data.folder_id in (None, 0) else prompt_data.folder_id
+        )
 
     # 2. Update Positive Prompts (Delete all and re-create for simplicity)
-    db.query(models.PositivePrompt).filter(models.PositivePrompt.prompt_id == prompt_id).delete()
-    for idx, content in enumerate(prompt_data.positive_prompts):
-        if idx >= 3: break
-        if content.strip():
-            pos_prompt = models.PositivePrompt(prompt_id=prompt_id, content=content, order_index=idx)
-            db.add(pos_prompt)
+    if "positive_prompts" in fields:
+        db.query(models.PositivePrompt).filter(
+            models.PositivePrompt.prompt_id == prompt_id
+        ).delete()
+        for idx, content in enumerate(prompt_data.positive_prompts):
+            if idx >= 3:
+                break
+            if content.strip():
+                pos_prompt = models.PositivePrompt(
+                    prompt_id=prompt_id,
+                    content=content,
+                    order_index=idx,
+                )
+                db.add(pos_prompt)
 
     # 3. Update Categories
-    db_prompt.categories.clear()
-    for cat_name in prompt_data.categories:
-        cat_name = cat_name.strip()
-        if not cat_name: continue
-        category = get_category_by_name(db, cat_name)
-        if not category:
-            category = models.Category(name=cat_name)
-            db.add(category)
-        db_prompt.categories.append(category)
+    if "categories" in fields:
+        db_prompt.categories.clear()
+        for cat_name in prompt_data.categories:
+            cat_name = cat_name.strip()
+            if not cat_name:
+                continue
+            category = get_category_by_name(db, cat_name)
+            if not category:
+                category = models.Category(name=cat_name)
+                db.add(category)
+            db_prompt.categories.append(category)
 
     # 4. Update Tags
-    db_prompt.tags.clear()
-    for tag_name in prompt_data.tags:
-        tag_name = tag_name.strip()
-        if not tag_name: continue
-        tag = get_tag_by_name(db, tag_name)
-        if not tag:
-            tag = models.Tag(name=tag_name)
-            db.add(tag)
-        db_prompt.tags.append(tag)
+    if "tags" in fields:
+        db_prompt.tags.clear()
+        for tag_name in prompt_data.tags:
+            tag_name = tag_name.strip()
+            if not tag_name:
+                continue
+            tag = get_tag_by_name(db, tag_name)
+            if not tag:
+                tag = models.Tag(name=tag_name)
+                db.add(tag)
+            db_prompt.tags.append(tag)
 
     # 5. Cleanup orphan tags
     cleanup_orphan_tags(db)
@@ -230,6 +359,21 @@ def add_image_to_prompt(db: Session, prompt_id: int, filename: str, note: Option
 def get_image(db: Session, image_id: int) -> Optional[models.Image]:
     return db.query(models.Image).filter(models.Image.id == image_id).first()
 
+
+def get_image_for_prompt(
+    db: Session,
+    prompt_id: int,
+    filename: str,
+) -> Optional[models.Image]:
+    return (
+        db.query(models.Image)
+        .filter(
+            models.Image.prompt_id == prompt_id,
+            models.Image.filename == filename,
+        )
+        .first()
+    )
+
 def delete_image(db: Session, image_id: int) -> bool:
     image = get_image(db, image_id)
     if image:
@@ -238,22 +382,58 @@ def delete_image(db: Session, image_id: int) -> bool:
         return True
     return False
 
-def get_categories(db: Session, search: Optional[str] = None) -> list[models.Category]:
+def get_categories(
+    db: Session,
+    search: Optional[str] = None,
+    is_nsfw: bool = False,
+    show_hidden: bool = False,
+) -> list[models.Category]:
     query = db.query(models.Category)
     
     if search:
         query = query.filter(models.Category.name.ilike(f"%{search}%"))
         
     categories = query.order_by(models.Category.name).all()
-    
-    # Compute counts
+    visible_categories: list[models.Category] = []
+
+    # Category names are metadata too. Do not return a category that only
+    # belongs to prompts outside the caller's visibility scope.
     for cat in categories:
-        count = db.query(models.prompt_category_association).filter(
+        linked_count = db.query(models.prompt_category_association).filter(
             models.prompt_category_association.c.category_id == cat.id
         ).count()
-        setattr(cat, "prompt_count", count)
-        
-    return categories
+        count_query = (
+            db.query(models.prompt_category_association)
+            .join(
+                models.Prompt,
+                models.Prompt.id == models.prompt_category_association.c.prompt_id,
+            )
+            .filter(
+                models.prompt_category_association.c.category_id == cat.id,
+                models.Prompt.is_nsfw == is_nsfw,
+                or_(
+                    models.Prompt.folder_id == None,
+                    models.Prompt.folder.has(models.Folder.is_nsfw == is_nsfw),
+                ),
+            )
+        )
+        if not show_hidden:
+            count_query = count_query.filter(
+                models.Prompt.is_hidden == False,
+                or_(
+                    models.Prompt.folder_id == None,
+                    models.Prompt.folder.has(models.Folder.is_hidden == False),
+                ),
+            )
+        count = count_query.count()
+
+        # Empty categories are safe to show; linked categories need at least
+        # one prompt visible in the requested scope.
+        if linked_count == 0 or count > 0:
+            setattr(cat, "prompt_count", count)
+            visible_categories.append(cat)
+
+    return visible_categories
 
 def create_category(db: Session, category: schemas.CategoryCreate) -> models.Category:
     db_cat = models.Category(name=category.name, description=category.description)
@@ -283,8 +463,20 @@ def delete_category(db: Session, category_id: int) -> bool:
         return True
     return False
 
-def get_tags(db: Session) -> list[models.Tag]:
-    return db.query(models.Tag).all()
+def get_tags(
+    db: Session,
+    is_nsfw: bool = False,
+    show_hidden: bool = False,
+) -> list[models.Tag]:
+    query = (
+        db.query(models.Tag)
+        .join(models.prompt_tag_association)
+        .join(models.Prompt)
+        .filter(models.Prompt.is_nsfw == is_nsfw)
+    )
+    if not show_hidden:
+        query = query.filter(models.Prompt.is_hidden == False)
+    return query.distinct().order_by(models.Tag.name).all()
 
 # --- Folders ---
 def create_folder(db: Session, folder: schemas.FolderCreate) -> models.Folder:
@@ -306,15 +498,32 @@ def get_folders(db: Session, is_nsfw: bool = False, show_hidden: bool = False) -
     
     for folder in folders:
         # Fetch recent prompts for preview (Roots only to ensure variety)
-        recent_prompts = db.query(models.Prompt).filter(models.Prompt.folder_id == folder.id, models.Prompt.parent_id == None).order_by(models.Prompt.created_at.desc()).limit(4).all()
+        preview_query = db.query(models.Prompt).filter(
+            models.Prompt.folder_id == folder.id,
+            models.Prompt.parent_id == None,
+            models.Prompt.is_nsfw == is_nsfw,
+        )
+        if not show_hidden:
+            preview_query = preview_query.filter(models.Prompt.is_hidden == False)
+        recent_prompts = preview_query.order_by(models.Prompt.created_at.desc()).limit(4).all()
         previews = []
         for p in recent_prompts:
             if p.images:
                 previews.append(f"/static/{p.id}/{p.images[0].filename}")
                 if len(previews) >= 4: break
-        
-        # Attach dynamic attribute for Pydantic schema
+
+        prompt_count_query = db.query(models.Prompt).filter(
+            models.Prompt.folder_id == folder.id,
+            models.Prompt.parent_id == None,
+            models.Prompt.is_nsfw == is_nsfw,
+        )
+        if not show_hidden:
+            prompt_count_query = prompt_count_query.filter(models.Prompt.is_hidden == False)
+        prompt_count = prompt_count_query.count()
+
+        # Attach dynamic attributes for Pydantic schema
         setattr(folder, "preview_images", previews)
+        setattr(folder, "prompt_count", prompt_count)
         
     return folders
 
