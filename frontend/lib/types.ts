@@ -24,6 +24,7 @@ export interface Folder {
   is_hidden: boolean;
   created_at: string;
   preview_images: string[];
+  prompt_count: number;
 }
 
 export interface PromptImage {
@@ -85,9 +86,10 @@ export interface PromptCreatePayload {
   categories: string[];
   tags: string[];
   is_nsfw: boolean;
+  is_hidden?: boolean;
   prompt_type: PromptType;
   parent_id?: number;
-  folder_id?: number;
+  folder_id?: number | null;
 }
 
 export interface PromptUpdatePayload {
@@ -98,8 +100,9 @@ export interface PromptUpdatePayload {
   categories: string[];
   tags: string[];
   prompt_type: PromptType;
-  folder_id?: number;
+  folder_id?: number | null;
   is_nsfw?: boolean;
+  is_hidden?: boolean;
   meta_json?: Record<string, unknown> | null;
 }
 
@@ -109,6 +112,11 @@ export interface PinRequest {
 
 export interface PinStatusResponse {
   is_set: boolean;
+}
+
+export interface PinVerifyResponse {
+  ok: boolean;
+  session_token: string;
 }
 
 export interface OkResponse {
@@ -136,16 +144,4 @@ export interface BulkDeletePayload {
 export interface BulkMovePayload {
   prompt_ids: number[];
   folder_id: number | null;
-}
-
-// --- Edit State (used in prompt detail page) ---
-
-export interface PromptEditData {
-  title: string;
-  description: string;
-  positive_prompts: string[];
-  negative_prompt: string;
-  categories: string[];
-  tags: string;
-  prompt_type: PromptType;
 }

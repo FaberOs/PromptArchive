@@ -1,87 +1,171 @@
-import { useState } from 'react';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
-import type { Prompt, PaginatedResponse } from '@/lib/types';
-import { useDebounce } from './useDebounce';
-import { toast } from 'sonner';
+import { useMemo, useState } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import api, { getCategories, privateSessionRequest, publicSessionRequest } from "@/lib/api";
+import type { Prompt, PaginatedResponse } from "@/lib/types";
+import { useDebounce } from "./useDebounce";
+import { toast } from "sonner";
+import { useSecurity } from "@/components/SecurityProvider";
 
 export interface CategoryItem {
   id: number;
   name: string;
   description?: string;
   prompt_count: number;
+  created_at?: string;
+  updated_at?: string | null;
 }
 
 const PAGE_SIZE = 20;
 
+function categoryMatchesSearch(category: CategoryItem, searchValue: string) {
+  const normalized = searchValue.trim().toLowerCase();
+  if (!normalized) return true;
+
+  return (
+    category.name.toLowerCase().includes(normalized) || (category.description ?? "").toLowerCase().includes(normalized)
+  );
+}
+
 export function useCategories() {
   const queryClient = useQueryClient();
+  const { isNsfwUnlocked } = useSecurity();
+
+  const upsertCategoryInCache = (searchValue: string, category: CategoryItem) => {
+    queryClient.setQueryData<CategoryItem[]>(["categories", searchValue], (prev = []) => {
+      const withoutCurrent = prev.filter((item) => item.id !== category.id);
+      if (!categoryMatchesSearch(category, searchValue)) {
+        return withoutCurrent;
+      }
+
+      return [category, ...withoutCurrent];
+    });
+  };
+
+  const removeCategoryFromCache = (searchValue: string, id: number) => {
+    queryClient.setQueryData<CategoryItem[]>(["categories", searchValue], (prev = []) =>
+      prev.filter((item) => item.id !== id),
+    );
+  };
 
   // Manage state
-  const [catSearch, setCatSearch] = useState('');
+  const [catSearch, setCatSearch] = useState("");
   const debouncedCatSearch = useDebounce(catSearch, 500);
+  const normalizedCatSearch = useMemo(() => debouncedCatSearch.trim(), [debouncedCatSearch]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
 
   // Browse state
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
-  const [promptSearch, setPromptSearch] = useState('');
+  const [promptSearch, setPromptSearch] = useState("");
   const debouncedPromptSearch = useDebounce(promptSearch, 500);
+  const normalizedPromptSearch = useMemo(() => debouncedPromptSearch.trim(), [debouncedPromptSearch]);
+  const normalizedFilters = useMemo(
+    () => [...new Set(selectedFilters)].sort((a, b) => a.localeCompare(b)),
+    [selectedFilters],
+  );
 
   // Active tab
-  const [activeTab, setActiveTab] = useState<'manage' | 'browse'>('manage');
+  const [activeTab, setActiveTab] = useState<"manage" | "browse">("manage");
 
   // ── Manage queries ──
   const { data: categories = [], isLoading: loadingCats } = useQuery({
-    queryKey: ['categories', debouncedCatSearch],
+    queryKey: ["categories", isNsfwUnlocked, normalizedCatSearch],
     queryFn: async () => {
-      const params = debouncedCatSearch ? { search: debouncedCatSearch } : {};
-      const res = await api.get<CategoryItem[]>('/categories/', { params });
-      return res.data;
+      const response = await getCategories(isNsfwUnlocked);
+      const data = response.data as CategoryItem[];
+      if (!normalizedCatSearch) return data;
+      const normalizedSearch = normalizedCatSearch.toLowerCase();
+      return data.filter(
+        (category) =>
+          category.name.toLowerCase().includes(normalizedSearch) ||
+          (category.description ?? "").toLowerCase().includes(normalizedSearch),
+      );
     },
+    staleTime: 30_000,
   });
 
   const invalidateCategories = () => {
-    queryClient.invalidateQueries({ queryKey: ['categories'] });
+    queryClient.invalidateQueries({
+      queryKey: ["categories"],
+      refetchType: "active",
+    });
   };
+
+  const refreshInactiveCategoryQueries = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["categories"],
+      refetchType: "inactive",
+    });
+  };
+
+  const categorySearchKeys = Array.from(new Set(["", normalizedCatSearch]));
 
   const handleCreate = async (name: string, description: string) => {
     try {
-      await api.post('/categories/', { name, description });
-      invalidateCategories();
-      toast.success('Category created');
+      const response = await api.post<CategoryItem>("/categories/", {
+        name,
+        description,
+      });
+      const createdCategory = response.data;
+
+      categorySearchKeys.forEach((searchKey) => {
+        upsertCategoryInCache(searchKey, createdCategory);
+      });
+
+      refreshInactiveCategoryQueries();
+      toast.success("Category created");
     } catch {
-      toast.error('Failed to create category');
+      invalidateCategories();
+      toast.error("Failed to create category");
     }
   };
 
   const handleUpdate = async (name: string, description: string) => {
     if (!editingCategory) return;
+
+    const categoryId = editingCategory.id;
+
     try {
-      await api.put(`/categories/${editingCategory.id}`, { name, description });
+      const response = await api.put<CategoryItem>(`/categories/${categoryId}`, {
+        name,
+        description,
+      });
+      const updatedCategory = response.data;
+
+      categorySearchKeys.forEach((searchKey) => {
+        upsertCategoryInCache(searchKey, updatedCategory);
+      });
+
       setEditingCategory(null);
-      invalidateCategories();
-      toast.success('Category updated');
+      refreshInactiveCategoryQueries();
+      toast.success("Category updated");
     } catch {
-      toast.error('Failed to update category');
+      invalidateCategories();
+      toast.error("Failed to update category");
     }
   };
 
   const handleDelete = async (id: number) => {
-    toast('Delete this category?', {
+    toast("Delete this category?", {
       action: {
-        label: 'Delete',
+        label: "Delete",
         onClick: async () => {
           try {
             await api.delete(`/categories/${id}`);
-            invalidateCategories();
-            toast.success('Category deleted');
+
+            categorySearchKeys.forEach((searchKey) => {
+              removeCategoryFromCache(searchKey, id);
+            });
+
+            refreshInactiveCategoryQueries();
+            toast.success("Category deleted");
           } catch {
-            toast.error('Failed to delete category');
+            invalidateCategories();
+            toast.error("Failed to delete category");
           }
         },
       },
-      cancel: { label: 'Cancel', onClick: () => {} },
+      cancel: { label: "Cancel", onClick: () => {} },
     });
   };
 
@@ -93,14 +177,18 @@ export function useCategories() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['prompts', 'browse', debouncedPromptSearch, selectedFilters],
+    queryKey: ["prompts", "browse", isNsfwUnlocked, normalizedPromptSearch, normalizedFilters],
     queryFn: async ({ pageParam = 0 }) => {
       const params = new URLSearchParams();
-      params.append('skip', String(pageParam));
-      params.append('limit', String(PAGE_SIZE));
-      if (debouncedPromptSearch) params.append('search', debouncedPromptSearch);
-      selectedFilters.forEach((cat) => params.append('categories', cat));
-      const res = await api.get<PaginatedResponse<Prompt>>(`/prompts/?${params.toString()}`);
+      params.append("skip", String(pageParam));
+      params.append("limit", String(PAGE_SIZE));
+      params.append("nsfw", String(isNsfwUnlocked));
+      if (normalizedPromptSearch) params.append("search", normalizedPromptSearch);
+      normalizedFilters.forEach((cat) => params.append("categories", cat));
+      const res = await api.get<PaginatedResponse<Prompt>>(
+        `/prompts/?${params.toString()}`,
+        isNsfwUnlocked ? privateSessionRequest : publicSessionRequest,
+      );
       return res.data;
     },
     initialPageParam: 0,
@@ -108,15 +196,19 @@ export function useCategories() {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0);
       return loaded < lastPage.total ? loaded : undefined;
     },
-    enabled: activeTab === 'browse',
+    enabled: activeTab === "browse",
+    staleTime: 15_000,
   });
 
   const prompts = promptsData?.pages.flatMap((p) => p.items) ?? [];
   const browseTotal = promptsData?.pages[0]?.total ?? 0;
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['prompts'] });
-    queryClient.invalidateQueries({ queryKey: ['categories'] });
+    queryClient.invalidateQueries({ queryKey: ["prompts", "browse"] });
+    queryClient.invalidateQueries({
+      queryKey: ["categories"],
+      refetchType: "active",
+    });
   };
 
   return {

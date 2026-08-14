@@ -1,109 +1,221 @@
-import { useState } from 'react';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import api, { getFolders, createFolder, updateFolder, deleteFolder } from '@/lib/api';
-import type { Prompt, PaginatedResponse } from '@/lib/types';
-import { useDebounce } from './useDebounce';
-import { toast } from 'sonner';
+import { useMemo, useState } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import api, {
+  getFolders,
+  createFolder,
+  updateFolder,
+  deleteFolder,
+  privateSessionRequest,
+  publicSessionRequest,
+} from "@/lib/api";
+import type { Prompt, PaginatedResponse } from "@/lib/types";
+import { buildLibraryQueryParams, type PromptSort, type PromptTypeFilter } from "@/lib/libraryFilters";
+import { useSecurity } from "@/components/SecurityProvider";
+import { useDebounce } from "./useDebounce";
+import { toast } from "sonner";
 
-const PAGE_SIZE = 20;
+const FOLDER_SHOW_HIDDEN_KEYS = [false, true] as const;
 
 interface UseLibraryOptions {
   isNsfw: boolean;
   currentFolderId: number | null;
   enabled?: boolean;
   showHidden?: boolean;
+  promptFilter?: PromptTypeFilter;
+  promptSort?: PromptSort;
 }
 
-export function useLibrary({ isNsfw, currentFolderId, enabled = true, showHidden = false }: UseLibraryOptions) {
+export function useLibrary({
+  isNsfw,
+  currentFolderId,
+  enabled = true,
+  showHidden = false,
+  promptFilter = "all",
+  promptSort = "newest",
+}: UseLibraryOptions) {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const { isNsfwUnlocked } = useSecurity();
+  const effectiveShowHidden = showHidden && isNsfwUnlocked;
+  const queryFilter = promptFilter === "hidden" && !isNsfwUnlocked ? "all" : promptFilter;
+
+  const upsertFolderInCache = (showHiddenKey: boolean, folder: Awaited<ReturnType<typeof createFolder>>["data"]) => {
+    queryClient.setQueryData(
+      ["folders", "library", isNsfw, showHiddenKey],
+      (prev: Awaited<ReturnType<typeof getFolders>>["data"] = []) => {
+        const withoutCurrent = prev.filter((item) => item.id !== folder.id);
+        return [folder, ...withoutCurrent];
+      },
+    );
+  };
+
+  const removeFolderFromCache = (showHiddenKey: boolean, folderId: number) => {
+    queryClient.setQueryData(
+      ["folders", "library", isNsfw, showHiddenKey],
+      (prev: Awaited<ReturnType<typeof getFolders>>["data"] = []) => prev.filter((item) => item.id !== folderId),
+    );
+  };
+
+  const refreshInactiveFolderQueries = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["folders", "library", isNsfw],
+      refetchType: "inactive",
+    });
+  };
+  const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 500);
+  const normalizedSearch = useMemo(() => debouncedSearch.trim(), [debouncedSearch]);
+  const effectiveFolderId = normalizedSearch ? null : currentFolderId === null ? 0 : currentFolderId;
 
   // ── Folders ──
-  const { data: folders = [], isLoading: foldersLoading } = useQuery({
-    queryKey: ['folders', isNsfw, showHidden],
-    queryFn: () => getFolders(isNsfw, showHidden).then(res => res.data),
+  const {
+    data: folders = [],
+    isLoading: foldersLoading,
+    isError: foldersError,
+  } = useQuery({
+    queryKey: ["folders", "library", isNsfw, effectiveShowHidden],
+    queryFn: () => getFolders(isNsfw, effectiveShowHidden).then((res) => res.data),
     enabled,
+    staleTime: 30_000,
   });
 
   // ── Prompts (infinite) ──
-  const buildParams = (pageParam: number) => {
-    const params: Record<string, string | number | boolean> = {
-      nsfw: isNsfw,
-      skip: pageParam,
-      limit: PAGE_SIZE,
-      show_hidden: showHidden,
-    };
-    if (debouncedSearch) {
-      params.search = debouncedSearch;
-    } else {
-      params.folder_id = currentFolderId === null ? 0 : currentFolderId;
-    }
-    return params;
-  };
+  const baseParams = useMemo(
+    () =>
+      buildLibraryQueryParams({
+        isNsfw,
+        showHidden: effectiveShowHidden,
+        promptFilter: queryFilter,
+        promptSort,
+        normalizedSearch,
+        folderId: effectiveFolderId,
+      }),
+    [effectiveFolderId, effectiveShowHidden, isNsfw, promptSort, queryFilter, normalizedSearch],
+  );
+
+  const promptsQueryKey = useMemo(
+    () => [
+      "prompts",
+      "library",
+      isNsfw,
+      effectiveShowHidden,
+      normalizedSearch,
+      effectiveFolderId,
+      queryFilter,
+      promptSort,
+    ],
+    [effectiveFolderId, effectiveShowHidden, isNsfw, promptSort, queryFilter, normalizedSearch],
+  );
 
   const {
     data: promptsData,
     isLoading: promptsLoading,
+    isError: promptsError,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['prompts', { nsfw: isNsfw, search: debouncedSearch, folderId: currentFolderId, showHidden }],
-    queryFn: ({ pageParam = 0 }) =>
-      api.get<PaginatedResponse<Prompt>>('/prompts/', { params: buildParams(pageParam) }).then(res => res.data),
+    queryKey: promptsQueryKey,
+    queryFn: ({ pageParam = 0 }) => {
+      const params = {
+        ...baseParams,
+        skip: pageParam,
+      };
+      return api
+        .get<PaginatedResponse<Prompt>>("/prompts/", {
+          params,
+          ...(isNsfw || effectiveShowHidden || queryFilter === "hidden" ? privateSessionRequest : publicSessionRequest),
+        })
+        .then((res) => res.data);
+    },
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.items.length, 0);
       return loaded < lastPage.total ? loaded : undefined;
     },
     enabled,
+    staleTime: 15_000,
   });
 
-  const prompts = promptsData?.pages.flatMap(p => p.items) ?? [];
+  const prompts = promptsData?.pages.flatMap((p) => p.items) ?? [];
   const total = promptsData?.pages[0]?.total ?? 0;
   const loading = foldersLoading || promptsLoading;
+  const error = foldersError || promptsError;
 
   // ── Mutations ──
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['prompts'] });
-    queryClient.invalidateQueries({ queryKey: ['folders'] });
+    queryClient.invalidateQueries({ queryKey: ["prompts", "library", isNsfw] });
+    queryClient.invalidateQueries({ queryKey: ["folders", "library", isNsfw] });
   };
 
   const handleCreateFolder = async (name: string, color: string) => {
     try {
-      await createFolder({ name, color, is_nsfw: isNsfw });
-      invalidateAll();
+      const response = await createFolder({ name, color, is_nsfw: isNsfw });
+      const createdFolder = response.data;
+
+      FOLDER_SHOW_HIDDEN_KEYS.forEach((showHiddenKey) => {
+        upsertFolderInCache(showHiddenKey, createdFolder);
+      });
+
+      refreshInactiveFolderQueries();
     } catch (e) {
       console.error(e);
+      queryClient.invalidateQueries({
+        queryKey: ["folders", "library", isNsfw],
+        refetchType: "active",
+      });
+      toast.error("Failed to create folder");
     }
   };
 
   const handleUpdateFolder = async (id: number, name: string, color: string) => {
     try {
-      await updateFolder(id, { name, color, is_nsfw: isNsfw });
-      invalidateAll();
+      const response = await updateFolder(id, { name, color, is_nsfw: isNsfw });
+      const updatedFolder = response.data;
+
+      FOLDER_SHOW_HIDDEN_KEYS.forEach((showHiddenKey) => {
+        upsertFolderInCache(showHiddenKey, updatedFolder);
+      });
+
+      refreshInactiveFolderQueries();
     } catch (e) {
       console.error(e);
+      queryClient.invalidateQueries({
+        queryKey: ["folders", "library", isNsfw],
+        refetchType: "active",
+      });
+      toast.error("Failed to update folder");
     }
   };
 
   const handleDeleteFolder = async (id: number) => {
-    toast('Delete this folder?', {
-      description: 'Prompts inside will be moved to root.',
+    toast("Delete this folder?", {
+      description: "Prompts inside will be moved to root.",
       action: {
-        label: 'Delete',
+        label: "Delete",
         onClick: async () => {
           try {
             await deleteFolder(id);
-            invalidateAll();
-            toast.success('Folder deleted');
+
+            FOLDER_SHOW_HIDDEN_KEYS.forEach((showHiddenKey) => {
+              removeFolderFromCache(showHiddenKey, id);
+            });
+
+            queryClient.invalidateQueries({
+              queryKey: ["prompts", "library", isNsfw],
+              refetchType: "active",
+            });
+            refreshInactiveFolderQueries();
+            toast.success("Folder deleted");
           } catch {
-            toast.error('Failed to delete folder');
+            queryClient.invalidateQueries({
+              queryKey: ["folders", "library", isNsfw],
+              refetchType: "active",
+            });
+            toast.error("Failed to delete folder");
           }
         },
       },
-      cancel: { label: 'Cancel', onClick: () => {} },
+      cancel: { label: "Cancel", onClick: () => {} },
     });
   };
 
@@ -120,6 +232,7 @@ export function useLibrary({ isNsfw, currentFolderId, enabled = true, showHidden
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    error,
     // Folder actions
     handleCreateFolder,
     handleUpdateFolder,

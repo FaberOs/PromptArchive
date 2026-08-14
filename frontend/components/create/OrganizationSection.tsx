@@ -1,13 +1,15 @@
 "use client";
 
-import { UseFormReturn } from 'react-hook-form';
-import type { CreateFormData } from '@/hooks/useCreatePrompt';
-import type { Folder } from '@/lib/types';
-import { Input } from '@/components/ui/Input';
-import { FieldLabel } from '@/components/ui/FieldLabel';
-import CategorySelector from '@/components/CategorySelector';
-import { Tag as TagIcon, Lock, Database, Folder as FolderIcon, ChevronDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useId } from "react";
+import { UseFormReturn } from "react-hook-form";
+import type { CreateFormData } from "@/hooks/useCreatePrompt";
+import type { Folder } from "@/lib/types";
+import { FieldGroup } from "@/components/ui/FieldGroup";
+import { TagInput } from "@/components/ui/TagInput";
+import CategorySelector from "@/components/CategorySelector";
+import { Tag as TagIcon, Lock, Database, Folder as FolderIcon, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { FormSectionHeader } from "./FormSectionHeader";
 
 interface OrganizationSectionProps {
   form: UseFormReturn<CreateFormData>;
@@ -25,52 +27,58 @@ export function OrganizationSection({
   onCategoriesChange,
 }: OrganizationSectionProps) {
   const { register } = form;
+  const folderId = useId();
+  const categoriesId = useId();
+  const tagsId = useId();
 
   return (
-    <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 space-y-4">
-      <div className="flex items-center gap-2 mb-1">
-        <TagIcon className="w-4 h-4 text-slate-400" />
-        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Organization</span>
-      </div>
+    <div className="space-y-5 rounded-pa-2xl border border-pa-border bg-pa-paper p-6 shadow-pa-subtle">
+      <FormSectionHeader
+        icon={TagIcon}
+        title="Organization"
+        description="Choose the library, folder, categories, and tags used to retrieve this prompt."
+      />
 
-      {/* Library toggle */}
-      <div>
-        <FieldLabel tip="Standard is visible always. NSFW requires a PIN to access.">Library</FieldLabel>
-        <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-700/50 rounded-lg w-full">
+      <FieldGroup label="Library" info="Standard is visible always. Private Library requires a PIN to access.">
+        <div className="inline-flex w-full rounded-pa-md border border-pa-border bg-pa-surface p-0.5">
           <label
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer',
-              isNsfw === 'false'
-                ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-500 dark:text-slate-400'
+              "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-pa-sm px-3 py-2 text-xs font-medium transition-[background-color,border-color,color,opacity,transform,box-shadow]",
+              isNsfw === "false" ? "bg-pa-paper text-pa-text shadow-pa-subtle" : "text-pa-muted",
             )}
           >
-            <input type="radio" value="false" {...register('is_nsfw')} className="sr-only" />
-            <Database className="w-3.5 h-3.5" /> Standard
+            <input type="radio" value="false" {...register("is_nsfw")} className="sr-only" />
+            <Database className="h-3.5 w-3.5" /> Standard
           </label>
           <label
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer',
-              isNsfw === 'true'
-                ? 'bg-red-600 text-white shadow-sm'
-                : 'text-slate-500 dark:text-slate-400'
+              "flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-pa-sm px-3 py-2 text-xs font-medium transition-[background-color,border-color,color,opacity,transform,box-shadow]",
+              isNsfw === "true" ? "bg-pa-private text-white shadow-pa-subtle" : "text-pa-muted",
             )}
           >
-            <input type="radio" value="true" {...register('is_nsfw')} className="sr-only" />
-            <Lock className="w-3.5 h-3.5" /> NSFW
+            <input type="radio" value="true" {...register("is_nsfw")} className="sr-only" />
+            <Lock className="h-3.5 w-3.5" /> Private
           </label>
         </div>
-      </div>
+      </FieldGroup>
 
-      {/* Folder */}
-      <div>
-        <FieldLabel tip="Optional folder to keep related prompts grouped.">Folder</FieldLabel>
+      <FieldGroup label="Folder" info="Optional folder to keep related prompts grouped." htmlFor={folderId}>
         <div className="relative">
-          <FolderIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+          <FolderIcon
+            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-pa-muted-soft"
+            aria-hidden="true"
+          />
+          <ChevronDown
+            className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-pa-muted-soft"
+            aria-hidden="true"
+          />
           <select
-            {...register('folder_id')}
-            className="w-full h-9 pl-9 pr-8 rounded-lg border border-slate-200 dark:border-slate-600/60 bg-white dark:bg-slate-800/60 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-300 appearance-none cursor-pointer transition-colors"
+            id={folderId}
+            {...register("folder_id")}
+            className={cn(
+              "h-[42px] w-full cursor-pointer appearance-none rounded-pa-md border border-pa-border bg-pa-paper pl-9 pr-8 text-sm text-pa-text",
+              "transition-colors focus-visible:border-pa-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-pa-primary/10",
+            )}
           >
             <option value="">Root (no folder)</option>
             {folders.map((f) => (
@@ -80,19 +88,19 @@ export function OrganizationSection({
             ))}
           </select>
         </div>
-      </div>
+      </FieldGroup>
 
-      {/* Categories */}
-      <div>
-        <FieldLabel tip="High-level groupings (e.g. Landscape, Character, Abstract).">Categories</FieldLabel>
-        <CategorySelector selected={selectedCategories} onChange={onCategoriesChange} />
-      </div>
+      <FieldGroup
+        label="Categories"
+        info="High-level groupings (e.g. Landscape, Character, Abstract)."
+        htmlFor={categoriesId}
+      >
+        <CategorySelector selected={selectedCategories} onChange={onCategoriesChange} triggerId={categoriesId} />
+      </FieldGroup>
 
-      {/* Tags */}
-      <div>
-        <FieldLabel tip="Comma-separated keywords for fine-grained filtering.">Tags</FieldLabel>
-        <Input {...register('tags')} placeholder="cinematic, 8k, octane render" className="text-sm" />
-      </div>
+      <FieldGroup label="Tags" info="Comma-separated keywords for fine-grained filtering." htmlFor={tagsId}>
+        <TagInput id={tagsId} {...register("tags")} />
+      </FieldGroup>
     </div>
   );
 }

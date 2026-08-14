@@ -1,6 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
-import { bulkHide, bulkDelete, bulkMove } from '@/lib/api';
-import { toast } from 'sonner';
+import { useState, useCallback, useMemo } from "react";
+import { bulkHide, bulkDelete, bulkMove } from "@/lib/api";
+import { toast } from "sonner";
 
 export interface SelectionState {
   selectedPromptIds: Set<number>;
@@ -48,24 +48,27 @@ export function useSelection(onComplete: () => void) {
     setSelectedPromptIds(new Set(ids));
   }, []);
 
-  const handleBulkHide = useCallback(async (hidden: boolean) => {
-    if (totalSelected === 0) return;
-    setLoading(true);
-    try {
-      await bulkHide({
-        prompt_ids: Array.from(selectedPromptIds),
-        folder_ids: Array.from(selectedFolderIds),
-        hidden,
-      });
-      toast.success(hidden ? 'Items hidden' : 'Items restored');
-      clearSelection();
-      onComplete();
-    } catch {
-      toast.error('Failed to update visibility');
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedPromptIds, selectedFolderIds, totalSelected, clearSelection, onComplete]);
+  const handleBulkHide = useCallback(
+    async (hidden: boolean) => {
+      if (totalSelected === 0) return;
+      setLoading(true);
+      try {
+        await bulkHide({
+          prompt_ids: Array.from(selectedPromptIds),
+          folder_ids: Array.from(selectedFolderIds),
+          hidden,
+        });
+        toast.success(hidden ? "Items hidden" : "Items restored");
+        clearSelection();
+        onComplete();
+      } catch {
+        toast.error("Failed to update visibility");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedPromptIds, selectedFolderIds, totalSelected, clearSelection, onComplete],
+  );
 
   const handleBulkDelete = useCallback(async () => {
     if (totalSelected === 0) return;
@@ -75,53 +78,69 @@ export function useSelection(onComplete: () => void) {
         prompt_ids: Array.from(selectedPromptIds),
         folder_ids: Array.from(selectedFolderIds),
       });
-      toast.success('Items deleted');
+      toast.success("Items deleted");
       clearSelection();
       onComplete();
     } catch {
-      toast.error('Failed to delete items');
+      toast.error("Failed to delete items");
     } finally {
       setLoading(false);
     }
   }, [selectedPromptIds, selectedFolderIds, totalSelected, clearSelection, onComplete]);
 
-  const handleBulkMove = useCallback(async (folderId: number | null) => {
-    if (selectedPromptIds.size === 0) return;
-    setLoading(true);
-    try {
-      await bulkMove({
-        prompt_ids: Array.from(selectedPromptIds),
-        folder_id: folderId,
-      });
-      toast.success('Prompts moved');
-      clearSelection();
-      onComplete();
-    } catch {
-      toast.error('Failed to move prompts');
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedPromptIds, clearSelection, onComplete]);
+  const handleBulkMove = useCallback(
+    async (folderId: number | null) => {
+      if (selectedPromptIds.size === 0) return;
+      setLoading(true);
+      try {
+        await bulkMove({
+          prompt_ids: Array.from(selectedPromptIds),
+          folder_id: folderId,
+        });
+        toast.success("Prompts moved");
+        clearSelection();
+        onComplete();
+      } catch {
+        toast.error("Failed to move prompts");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedPromptIds, clearSelection, onComplete],
+  );
 
-  return useMemo(() => ({
-    selectionMode,
-    selectedPromptIds,
-    selectedFolderIds,
-    totalSelected,
-    loading,
-    togglePrompt,
-    toggleFolder,
-    clearSelection,
-    enterSelectionMode,
-    selectAllPrompts,
-    handleBulkHide,
-    handleBulkDelete,
-    handleBulkMove,
-  }), [
-    selectionMode, selectedPromptIds, selectedFolderIds, totalSelected, loading,
-    togglePrompt, toggleFolder, clearSelection, enterSelectionMode, selectAllPrompts,
-    handleBulkHide, handleBulkDelete, handleBulkMove,
-  ]);
+  return useMemo(
+    () => ({
+      selectionMode,
+      selectedPromptIds,
+      selectedFolderIds,
+      totalSelected,
+      loading,
+      togglePrompt,
+      toggleFolder,
+      clearSelection,
+      enterSelectionMode,
+      selectAllPrompts,
+      handleBulkHide,
+      handleBulkDelete,
+      handleBulkMove,
+    }),
+    [
+      selectionMode,
+      selectedPromptIds,
+      selectedFolderIds,
+      totalSelected,
+      loading,
+      togglePrompt,
+      toggleFolder,
+      clearSelection,
+      enterSelectionMode,
+      selectAllPrompts,
+      handleBulkHide,
+      handleBulkDelete,
+      handleBulkMove,
+    ],
+  );
 }
 
 export type UseSelectionReturn = ReturnType<typeof useSelection>;

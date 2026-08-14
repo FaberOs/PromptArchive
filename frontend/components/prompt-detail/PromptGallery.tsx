@@ -1,350 +1,284 @@
-import { useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import type { Prompt } from '@/lib/types';
-import { Button } from '@/components/ui/Button';
-import { cn } from '@/lib/utils';
-import { Trash2, ImageIcon, Upload, ArrowLeft, GitBranch, ChevronUp, ChevronDown } from 'lucide-react';
-import ImageViewer from '@/components/ImageViewer';
-import { API_BASE_URL } from '@/lib/constants';
-import clsx from 'clsx';
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import type { Prompt } from "@/lib/types";
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
+import { ImageIcon, ArrowLeft, GitBranch, ChevronUp, ChevronDown } from "lucide-react";
+import ImageViewer from "@/components/ImageViewer";
+import { useScrollBounds } from "@/hooks/useScrollBounds";
+import { AuthenticatedImage } from "@/components/ui/AuthenticatedImage";
 
 interface PromptGalleryProps {
-    prompt: Prompt;
-    variants: Prompt[];
-    isEditing: boolean;
-    previewVariant: Prompt | null;
-    setPreviewVariant: (variant: Prompt | null) => void;
-    onUploadImage: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onDeleteImage: (id: number) => void;
-    uploadingImage: boolean;
+  prompt: Prompt;
+  variants: Prompt[];
+  previewVariant: Prompt | null;
+  setPreviewVariant: (variant: Prompt | null) => void;
 }
 
-export default function PromptGallery({ 
-    prompt, 
-    variants, 
-    isEditing, 
-    previewVariant, 
-    setPreviewVariant,
-    onUploadImage,
-    onDeleteImage,
-    uploadingImage
-}: PromptGalleryProps) {
-    const router = useRouter();
-    const [activeImageIndex, setActiveImageIndex] = useState(0);
-    const [isViewerOpen, setIsViewerOpen] = useState(false);
-    
-    // Carousel Refs and State
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const [canScrollUp, setCanScrollUp] = useState(false);
-    const [canScrollDown, setCanScrollDown] = useState(false);
+export default function PromptGallery({ prompt, variants, previewVariant, setPreviewVariant }: PromptGalleryProps) {
+  const router = useRouter();
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
 
-    const hasImages = prompt.images && prompt.images.length > 0;
-    const activeImage = hasImages ? prompt.images[activeImageIndex] : null;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { canScrollUp, canScrollDown } = useScrollBounds(scrollContainerRef);
 
-    // Determine what image to show
-    const displayImage = previewVariant 
-        ? (previewVariant.images && previewVariant.images.length > 0 ? previewVariant.images[0] : null) 
-        : activeImage;
+  const hasImages = prompt.images && prompt.images.length > 0;
+  const activeImage = hasImages ? prompt.images[activeImageIndex] : null;
 
-    // Images for the viewer
-    const viewerImages = previewVariant ? (previewVariant.images || []) : prompt.images;
+  const displayImage = previewVariant
+    ? previewVariant.images && previewVariant.images.length > 0
+      ? previewVariant.images[0]
+      : null
+    : activeImage;
 
-    // Check Scroll Capability
-    const checkScroll = () => {
-        if (scrollContainerRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-            setCanScrollUp(scrollTop > 0);
-            setCanScrollDown(scrollTop + clientHeight < scrollHeight - 1); // -1 for tolerance
-        }
-    };
+  const viewerImages = previewVariant ? previewVariant.images || [] : prompt.images;
 
-    useEffect(() => {
-        checkScroll();
-        window.addEventListener('resize', checkScroll);
-        return () => window.removeEventListener('resize', checkScroll);
-    }, [variants]); // Re-check when variants change
-
-    const handleScroll = () => checkScroll();
-
-    const scroll = (direction: 'up' | 'down') => {
-        if (scrollContainerRef.current) {
-            const scrollAmount = 100; // Approx one item height
-            scrollContainerRef.current.scrollBy({
-                top: direction === 'up' ? -scrollAmount : scrollAmount,
-                behavior: 'smooth'
-            });
-        }
-    };
-
-    // --- Edit Mode Gallery ---
-    if (isEditing) {
-        return (
-            <div className="border border-dashed border-slate-300 dark:border-slate-600/60 rounded-xl p-6 bg-slate-50 dark:bg-slate-800/40">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-200 mb-4 flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4" /> Manage Images
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {prompt.images.map((img) => (
-                        <div key={img.id} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group">
-                            <Image 
-                            src={`${API_BASE_URL}${img.url}`} 
-                            alt="Thumbnail" 
-                            fill 
-                            unoptimized
-                            className="object-cover"
-                            />
-                            <button
-                                onClick={() => onDeleteImage(img.id)}
-                                className="absolute top-1 right-1 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
-                                title="Delete Image"
-                            >
-                                <Trash2 className="w-3 h-3" />
-                            </button>
-                        </div>
-                    ))}
-
-                    {prompt.images.length < 4 && (
-                        <div className="relative border-2 border-dashed border-slate-300 dark:border-slate-600/60 rounded-lg aspect-square flex flex-col items-center justify-center text-slate-400 hover:bg-white dark:hover:bg-slate-700/40 transition-colors cursor-pointer bg-white/50 dark:bg-slate-800/40">
-                            {uploadingImage ? (
-                                <div className="animate-spin w-6 h-6 border-2 border-slate-400 border-t-transparent rounded-full" />
-                            ) : (
-                                <>
-                                    <input 
-                                        type="file" 
-                                        accept="image/*" 
-                                        multiple
-                                        onChange={onUploadImage}
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    />
-                                    <Upload className="w-6 h-6 mb-2" />
-                                    <span className="text-xs">Add Image</span>
-                                </>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
+  const scroll = (direction: "up" | "down") => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({
+        top: direction === "up" ? -100 : 100,
+        behavior: "smooth",
+      });
     }
+  };
 
-    // --- View Mode Gallery ---
-    if (!hasImages && (!variants.length || prompt.parent_id)) {
-        return (
-            <div className="w-full h-48 bg-white dark:bg-slate-800/60 border-2 border-dashed border-slate-200 dark:border-slate-700/50 rounded-xl flex flex-col items-center justify-center text-slate-400">
-                <ImageIcon className="w-10 h-10 mb-2 opacity-20" />
-                <span>No images attached</span>
-            </div>
-        );
-    }
+  const heroImageSrc = displayImage
+    ? displayImage.url || `/static/${previewVariant?.id ?? prompt.id}/${displayImage.filename}`
+    : null;
 
+  if (!hasImages && (!variants.length || prompt.parent_id)) {
     return (
-        <div className="bg-white dark:bg-slate-800/60 rounded-2xl p-2 md:p-4 shadow-xl border border-slate-200 dark:border-slate-700/50">
-            <div className="flex flex-col lg:flex-row gap-4 h-[600px] lg:h-auto min-h-[500px]"> 
-                {/* Fixed height container for layout stability, though responsive content inside */}
-                
-                {/* Comparison Carousel (Vertical) */}
-                {!prompt.parent_id && variants.length > 0 && (
-                    <div className="relative flex flex-col lg:w-28 flex-shrink-0 h-full max-h-[500px]">
-                        
-                         {/* Up Arrow */}
-                         <button 
-                            onClick={() => scroll('up')}
-                            className={cn(
-                                "absolute -top-3 left-1/2 -translate-x-1/2 z-20 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 shadow-md transition-all hover:scale-110",
-                                canScrollUp ? "opacity-100 visible" : "opacity-0 invisible"
-                            )}
-                         >
-                            <ChevronUp className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                         </button>
+      <div className="flex h-40 flex-col items-center justify-center rounded-pa-xl border-2 border-dashed border-pa-border bg-pa-surface text-pa-muted sm:h-48">
+        <ImageIcon className="mb-2 h-10 w-10 opacity-20" />
+        <span>No images attached</span>
+      </div>
+    );
+  }
 
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center py-1 hidden lg:block">
-                            Variants
-                        </div>
-                        
-                        {/* Scroll Container */}
-                        <div 
-                            ref={scrollContainerRef}
-                            onScroll={handleScroll}
-                            className="flex lg:flex-col gap-3 overflow-auto p-2 scrollbar-none h-full bg-slate-50 dark:bg-slate-700/30 rounded-xl border border-slate-100 dark:border-slate-700/40 items-center lg:items-center scroll-smooth"
-                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }} // Hide scrollbar standard/IE
-                        >
-                            {/* Current (Parent) */}
-                            <div 
-                                onClick={() => setPreviewVariant(null)}
-                                className={cn(
-                                    "relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer transition-all",
-                                    previewVariant === null
-                                        ? "border-2 border-slate-900 dark:border-white ring-2 ring-slate-900/20 dark:ring-white/20 shadow-md scale-105 z-10" 
-                                        : "border border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100"
-                                )}
-                                title="Original"
-                            >
-                                {prompt.images && prompt.images.length > 0 ? (
-                                    <Image 
-                                        src={`${API_BASE_URL}${prompt.images[0].url}`} 
-                                        alt="Original" 
-                                        fill 
-                                        unoptimized
-                                        className="object-cover"
-                                    />
-                                ) : (
-                                    <div className="flex items-center justify-center h-full bg-slate-100 dark:bg-slate-700/60 text-slate-400"><ImageIcon className="w-5 h-5" /></div>
-                                )}
-                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] font-bold px-1 py-0.5 text-center truncate">
-                                    ORIGINAL
-                                </div>
-                            </div>
+  return (
+    <div className="w-full min-w-0 overflow-hidden rounded-pa-2xl border border-pa-border bg-pa-paper p-2 shadow-pa-card sm:p-3 md:p-4">
+      <div className="flex min-h-0 flex-col gap-4 lg:min-h-128 lg:flex-row">
+        {!prompt.parent_id && variants.length > 0 && (
+          <div className="relative flex w-full shrink-0 flex-col lg:h-full lg:max-h-112 lg:w-28">
+            <button
+              type="button"
+              onClick={() => scroll("up")}
+              aria-label="Scroll variants up"
+              className={cn(
+                "absolute -top-3 left-1/2 z-20 hidden -translate-x-1/2 rounded-full border border-pa-border bg-pa-paper p-1 shadow-pa-subtle transition-[background-color,border-color,color,opacity,transform,box-shadow] hover:scale-110 lg:inline-flex",
+                canScrollUp ? "visible opacity-100" : "invisible opacity-0",
+              )}
+            >
+              <ChevronUp className="h-4 w-4 text-pa-muted" />
+            </button>
 
-                            {/* Variants */}
-                            {variants.map((v, idx) => (
-                                <div 
-                                    key={v.id}
-                                    onClick={() => setPreviewVariant(v)}
-                                    className={cn(
-                                        "relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer transition-all group",
-                                        previewVariant?.id === v.id
-                                            ? "border-2 border-emerald-500 ring-2 ring-emerald-500/20 shadow-md scale-105 z-10" 
-                                            : "border border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100"
-                                    )}
-                                    title={v.title}
-                                >
-                                    {v.images && v.images.length > 0 ? (
-                                        <Image 
-                                            src={`${API_BASE_URL}/static/${v.id}/${v.images[0].filename}`} 
-                                            alt={v.title} 
-                                            fill 
-                                            unoptimized
-                                            className="object-cover"
-                                        />
-                                    ) : (
-                                        <div className="flex items-center justify-center h-full bg-slate-100 dark:bg-slate-700/60 text-slate-400"><ImageIcon className="w-5 h-5" /></div>
-                                    )}
-                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] font-bold px-1 py-0.5 text-center truncate">
-                                        V{idx + 1}
-                                    </div>
-                                    
-                                    {/* Quick Link Button */}
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            router.push(`/prompts/${v.id}`);
-                                        }}
-                                        className="absolute top-1 right-1 bg-white/90 dark:bg-black/80 text-slate-900 dark:text-white p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                                        title="Open Details"
-                                    >
-                                        <ArrowLeft className="w-3 h-3 rotate-180" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
+            <div className="hidden py-1 text-center text-[10px] font-bold uppercase tracking-widest text-pa-muted-soft lg:block">
+              Variants
+            </div>
 
-                         {/* Down Arrow */}
-                         <button 
-                            onClick={() => scroll('down')}
-                            className={cn(
-                                "absolute -bottom-3 left-1/2 -translate-x-1/2 z-20 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 shadow-md transition-all hover:scale-110",
-                                canScrollDown ? "opacity-100 visible" : "opacity-0 invisible"
-                            )}
-                         >
-                            <ChevronDown className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                         </button>
+            <div
+              ref={scrollContainerRef}
+              className="scrollbar-none flex w-full gap-3 overflow-x-auto rounded-pa-lg border border-pa-border bg-pa-surface p-2 scroll-smooth lg:h-full lg:flex-col lg:items-center lg:overflow-y-auto lg:overflow-x-hidden"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setPreviewVariant(null)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setPreviewVariant(null);
+                  }
+                }}
+                aria-label="Preview original prompt image"
+                aria-pressed={previewVariant === null}
+                className={cn(
+                  "relative h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-pa-md transition-[background-color,border-color,color,opacity,transform,box-shadow]",
+                  previewVariant === null
+                    ? "z-10 scale-105 border-2 border-pa-primary shadow-pa-subtle ring-2 ring-pa-primary/15"
+                    : "border border-pa-border opacity-60 hover:opacity-100",
+                )}
+                title="Original"
+              >
+                {prompt.images && prompt.images.length > 0 ? (
+                  <AuthenticatedImage
+                    src={prompt.images[0].url}
+                    alt="Original"
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-pa-surface text-pa-muted-soft">
+                    <ImageIcon className="h-5 w-5" />
+                  </div>
+                )}
+                <div className="absolute bottom-0 left-0 right-0 truncate bg-black/60 px-1 py-0.5 text-center text-[9px] font-bold text-white">
+                  ORIGINAL
+                </div>
+              </div>
+
+              {variants.map((v, idx) => (
+                <div key={v.id} className="group relative h-20 w-20 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewVariant(v)}
+                    aria-label={`Preview variant ${idx + 1}: ${v.title}`}
+                    aria-pressed={previewVariant?.id === v.id}
+                    className={cn(
+                      "relative h-full w-full cursor-pointer overflow-hidden rounded-pa-md transition-[background-color,border-color,color,opacity,transform,box-shadow]",
+                      previewVariant?.id === v.id
+                        ? "z-10 scale-105 border-2 border-pa-success shadow-pa-subtle ring-2 ring-pa-success/20"
+                        : "border border-pa-border opacity-60 hover:opacity-100",
+                    )}
+                    title={v.title}
+                  >
+                    {v.images && v.images.length > 0 ? (
+                      <AuthenticatedImage
+                        src={v.images[0].url || `/static/${v.id}/${v.images[0].filename}`}
+                        alt={v.title}
+                        fill
+                        sizes="80px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center bg-pa-surface text-pa-muted-soft">
+                        <ImageIcon className="h-5 w-5" />
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 truncate bg-black/60 px-1 py-0.5 text-center text-[9px] font-bold text-white">
+                      V{idx + 1}
                     </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/prompts/${v.id}`)}
+                    className="absolute right-1 top-1 z-10 rounded-full bg-pa-paper/90 p-1 text-pa-text opacity-0 shadow-pa-subtle transition-[background-color,border-color,color,opacity,transform,box-shadow] hover:bg-pa-success hover:text-white group-hover:opacity-100 dark:bg-pa-surface/90 dark:text-pa-text"
+                    title="Open Details"
+                    aria-label={`Open variant ${idx + 1}`}
+                  >
+                    <ArrowLeft className="h-3 w-3 rotate-180" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => scroll("down")}
+              aria-label="Scroll variants down"
+              className={cn(
+                "absolute -bottom-3 left-1/2 z-20 hidden -translate-x-1/2 rounded-full border border-pa-border bg-pa-paper p-1 shadow-pa-subtle transition-[background-color,border-color,color,opacity,transform,box-shadow] hover:scale-110 lg:inline-flex",
+                canScrollDown ? "visible opacity-100" : "invisible opacity-0",
+              )}
+            >
+              <ChevronDown className="h-4 w-4 text-pa-muted" />
+            </button>
+          </div>
+        )}
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col space-y-4">
+          <div className="group relative flex min-h-48 flex-1 items-center justify-center overflow-hidden rounded-pa-lg border border-pa-border bg-pa-surface sm:min-h-75">
+            {displayImage && heroImageSrc ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsViewerOpen(true)}
+                  aria-label="Open fullscreen image view"
+                  className="relative flex h-full max-h-[50vh] w-full max-w-full cursor-zoom-in items-center justify-center sm:max-h-[60vh] lg:max-h-[70vh]"
+                >
+                  <AuthenticatedImage
+                    src={heroImageSrc}
+                    alt={`Preview image for ${previewVariant?.title ?? prompt.title}`}
+                    width={1200}
+                    height={900}
+                    sizes="100vw"
+                    className="h-auto max-h-[50vh] w-auto max-w-full object-contain sm:max-h-[60vh] lg:max-h-[70vh]"
+                  />
+                </button>
+
+                {previewVariant && (
+                  <div className="pointer-events-none absolute left-3 right-3 top-3 flex items-start justify-between sm:left-4 sm:right-4 sm:top-4">
+                    <div className="flex items-center gap-2 rounded-pa-lg bg-pa-success/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-pa-float backdrop-blur-sm sm:px-3 sm:py-1.5 sm:text-xs">
+                      <GitBranch className="h-3 w-3" />
+                      Previewing Variant
+                    </div>
+                  </div>
                 )}
 
-                {/* Main Display */}
-                <div className="flex-1 space-y-4 min-w-0 flex flex-col h-full">
-                    {/* Main Image Area */}
-                    <div className="relative flex-1 min-h-[300px] bg-slate-100 dark:bg-black/30 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-700/40 group flex items-center justify-center">
-                        {displayImage ? (
-                            <>
-                                <img 
-                                    src={`${API_BASE_URL}${displayImage.url || ('/static/' + previewVariant?.id + '/' + displayImage.filename)}`} 
-                                    alt="Main Preview" 
-                                    className="w-auto h-auto max-h-[70vh] max-w-full object-contain cursor-zoom-in"
-                                    onClick={() => setIsViewerOpen(true)}
-                                />
-                                
-                                {/* Preview Overlay Info */}
-                                {previewVariant && (
-                                    <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
-                                        <div className="bg-emerald-500/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-lg shadow-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-                                            <GitBranch className="w-3 h-3" />
-                                            Previewing Variant
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Fullscreen Hint */}
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 dark:group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
-                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-black/50 text-slate-900 dark:text-white px-4 py-2 rounded-full text-sm font-medium backdrop-blur-sm shadow-sm">
-                                        Fullscreen View
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                <ImageIcon className="w-12 h-12 opacity-20 mb-2" />
-                                <span>No image available</span>
-                                </div>
-                        )}
-                    </div>
-
-                    {/* Controls / Thumbnails */}
-                    {previewVariant ? (
-                        /* Variant Preview Controls */
-                        <div className="bg-slate-50 dark:bg-slate-700/40 p-4 rounded-xl border border-slate-100 dark:border-slate-700/40 flex items-center justify-between animate-in fade-in slide-in-from-top-1 flex-shrink-0">
-                            <div>
-                                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">{previewVariant.title}</h4>
-                                <p className="text-xs text-slate-500 line-clamp-1">{previewVariant.description || "No description"}</p>
-                            </div>
-                            <Button 
-                                size="sm" 
-                                onClick={() => router.push(`/prompts/${previewVariant.id}`)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 ml-4"
-                            >
-                                View Full Details <ArrowLeft className="w-3 h-3 rotate-180 ml-2" />
-                            </Button>
-                        </div>
-                    ) : (
-                        /* Standard Thumbnails (only if original has multiple images) */
-                        prompt.images.length > 1 && (
-                            <div className="flex justify-center gap-3 overflow-x-auto py-2 flex-shrink-0">
-                                {prompt.images.map((img, idx) => (
-                                    <button 
-                                        key={img.id}
-                                        onClick={() => setActiveImageIndex(idx)}
-                                        className={clsx(
-                                            "relative h-16 w-24 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all",
-                                            activeImageIndex === idx 
-                                                ? "border-emerald-500 ring-2 ring-emerald-500/20 opacity-100" 
-                                                : "border-transparent opacity-50 hover:opacity-80"
-                                        )}
-                                    >
-                                        <Image 
-                                            src={`${API_BASE_URL}${img.url}`} 
-                                            alt="Thumbnail" 
-                                            fill 
-                                            unoptimized
-                                            className="object-cover"
-                                        />
-                                    </button>
-                                ))}
-                            </div>
-                        )
-                    )}
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/5 dark:group-hover:bg-black/20">
+                  <div className="rounded-full bg-pa-paper/90 px-3 py-1.5 text-xs font-medium text-pa-text opacity-0 shadow-pa-subtle backdrop-blur-sm transition-opacity group-hover:opacity-100 sm:px-4 sm:py-2 sm:text-sm dark:bg-pa-ink/50 dark:text-pa-paper">
+                    Fullscreen View
+                  </div>
                 </div>
-            </div>
-
-            {/* Lightbox Modal (Global) */}
-            {(hasImages || (previewVariant && previewVariant.images && previewVariant.images.length > 0)) && (
-                <ImageViewer 
-                    images={viewerImages} 
-                    initialIndex={previewVariant ? 0 : activeImageIndex}
-                    isOpen={isViewerOpen}
-                    onClose={() => setIsViewerOpen(false)}
-                />
+              </>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center text-pa-muted-soft">
+                <ImageIcon className="mb-2 h-12 w-12 opacity-20" />
+                <span>No image available</span>
+              </div>
             )}
+          </div>
+
+          {previewVariant ? (
+            <div className="pa-section-in flex shrink-0 flex-col gap-3 rounded-pa-xl border border-pa-border bg-pa-surface p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+              <div className="min-w-0">
+                <h4 className="truncate text-sm font-bold text-pa-text">{previewVariant.title}</h4>
+                {previewVariant.description ? (
+                  <p className="line-clamp-2 wrap-break-word text-xs text-pa-muted">{previewVariant.description}</p>
+                ) : null}
+              </div>
+              <Button
+                size="sm"
+                onClick={() => router.push(`/prompts/${previewVariant.id}`)}
+                className="w-full shrink-0 bg-pa-success text-white hover:opacity-90 sm:w-auto"
+              >
+                View Full Details <ArrowLeft className="ml-2 h-3 w-3 rotate-180" />
+              </Button>
+            </div>
+          ) : (
+            prompt.images.length > 1 && (
+              <div className="flex max-w-full shrink-0 justify-start gap-2 overflow-x-auto py-1 sm:justify-center sm:gap-3 sm:py-2">
+                {prompt.images.map((img, idx) => (
+                  <button
+                    key={img.id}
+                    type="button"
+                    onClick={() => setActiveImageIndex(idx)}
+                    aria-label={`View image ${idx + 1}`}
+                    className={cn(
+                      "relative h-14 w-20 shrink-0 overflow-hidden rounded-pa-md border-2 transition-[background-color,border-color,color,opacity,transform,box-shadow] sm:h-16 sm:w-24",
+                      activeImageIndex === idx
+                        ? "border-pa-success opacity-100 ring-2 ring-pa-success/20"
+                        : "border-transparent opacity-50 hover:opacity-80",
+                    )}
+                  >
+                    <AuthenticatedImage
+                      src={img.url}
+                      alt="Thumbnail"
+                      fill
+                      sizes="(max-width: 640px) 80px, 96px"
+                      className="object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )
+          )}
         </div>
-    );
+      </div>
+
+      {(hasImages || (previewVariant && previewVariant.images && previewVariant.images.length > 0)) && (
+        <ImageViewer
+          images={viewerImages}
+          imageOwnerId={previewVariant?.id ?? prompt.id}
+          initialIndex={previewVariant ? 0 : activeImageIndex}
+          isOpen={isViewerOpen}
+          onClose={() => setIsViewerOpen(false)}
+        />
+      )}
+    </div>
+  );
 }

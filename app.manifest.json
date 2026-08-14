@@ -1,0 +1,38 @@
+{
+  "id": "prompt-archive",
+  "name": "Prompt Archive",
+  "description": "Biblioteca de prompts para IA",
+  "version": "1.2.0",
+  "ui": {
+    "kind": "static",
+    "entry": "index.html",
+    "route": "/prompt-archive",
+    "port": 3002
+  },
+  "backend": {
+    "kind": "python",
+    "entry": "backend/main.py",
+    "port": 8000,
+    "healthcheck": "/health"
+  },
+  "window": {
+    "width": 1200,
+    "height": 800,
+    "minWidth": 900,
+    "minHeight": 600
+  },
+  "permissions": {
+    "filesystem": true,
+    "dialogs": true,
+    "network": true
+  },
+  "build": {
+    "outputDir": "frontend/out",
+    "extraResources": ["backend", "venv"]
+  },
+  "display": {
+    "emoji": "📦",
+    "accent": "blue",
+    "subtitle": "Biblioteca de prompts"
+  }
+}

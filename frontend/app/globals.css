@@ -3,32 +3,279 @@
 @variant dark (&:where(.dark, .dark *));
 
 @theme {
+  /* Legacy bridge — keeps existing bg-background / text-foreground working */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  /* Prompt Archive palette (Tailwind: bg-pa-cream, text-pa-ink, etc.) */
+  --color-pa-ink: var(--pa-ink);
+  --color-pa-brand-cream: var(--pa-brand-cream);
+  --color-pa-cream: var(--pa-cream);
+  --color-pa-paper: var(--pa-paper);
+  --color-pa-surface: var(--pa-surface);
+  --color-pa-border: var(--pa-border);
+  --color-pa-border-strong: var(--pa-border-strong);
+  --color-pa-text: var(--pa-text);
+  --color-pa-muted: var(--pa-muted);
+  --color-pa-muted-soft: var(--pa-muted-soft);
+  --color-pa-primary: var(--pa-primary);
+  --color-pa-primary-hover: var(--pa-primary-hover);
+  --color-pa-soft-blue: var(--pa-soft-blue);
+  --color-pa-icon-well: var(--pa-icon-well);
+  --color-pa-icon-well-fg: var(--pa-icon-well-fg);
+  --color-pa-icon-well-border: var(--pa-icon-well-border);
+  --color-pa-success: var(--pa-success);
+  --color-pa-success-soft: var(--pa-success-soft);
+  --color-pa-warning: var(--pa-warning);
+  --color-pa-warning-soft: var(--pa-warning-soft);
+  --color-pa-json: var(--pa-json);
+  --color-pa-json-soft: var(--pa-json-soft);
+  --color-pa-private: var(--pa-private);
+  --color-pa-private-soft: var(--pa-private-soft);
+  --color-pa-danger: var(--pa-danger);
+  --color-pa-danger-soft: var(--pa-danger-soft);
+
+  --radius-pa-xs: var(--pa-radius-xs);
+  --radius-pa-sm: var(--pa-radius-sm);
+  --radius-pa-md: var(--pa-radius-md);
+  --radius-pa-lg: var(--pa-radius-lg);
+  --radius-pa-xl: var(--pa-radius-xl);
+  --radius-pa-2xl: var(--pa-radius-2xl);
+
+  --shadow-pa-subtle: var(--pa-shadow-subtle);
+  --shadow-pa-card: var(--pa-shadow-card);
+  --shadow-pa-card-hover: var(--pa-shadow-card-hover);
+  --shadow-pa-float: var(--pa-shadow-float);
+  --shadow-pa-modal: var(--pa-shadow-modal);
+
+  /* Layering — sidebar mobile stack sits above all page content; modals above sidebar */
+  --z-pa-tooltip: 25;
+  --z-pa-sticky: 20;
+  --z-pa-popover: 40;
+  --z-pa-fixed-content: 50;
+  --z-pa-sidebar-toggle: 9000;
+  --z-pa-sidebar-overlay: 9010;
+  --z-pa-sidebar-panel: 9020;
+  --z-pa-modal: 9100;
+  --z-pa-toast: 9200;
 }
 
-/* Default (Light - Warm Cream) */
+/* ── Prompt Archive Design System — Light ─────────────────────────────── */
 :root {
-  --background: #fdfbf7;
-  --foreground: #1e293b;
+  color-scheme: light;
+  --pa-ink: #0b142b;
+  --pa-brand-cream: #f7f3ec;
+  --pa-cream: #f7f3ec;
+  --pa-paper: #fffdf8;
+  --pa-surface: #faf7f0;
+  --pa-border: #e7dfd2;
+  --pa-border-strong: #d8cfbf;
+
+  --pa-text: #0b142b;
+  --pa-muted: #728098;
+  --pa-muted-soft: #9aa6b8;
+
+  --pa-primary: #0b142b;
+  --pa-primary-hover: #101d3a;
+  --pa-soft-blue: #eaf0f8;
+  --pa-icon-well: #eaf0f8;
+  --pa-icon-well-fg: #0b142b;
+  --pa-icon-well-border: #d8e2ef;
+
+  --pa-success: #16a36a;
+  --pa-success-soft: #eaf8f1;
+  --pa-warning: #d99a2b;
+  --pa-warning-soft: #fff5da;
+  --pa-json: #7c3aed;
+  --pa-json-soft: #f2eafe;
+  --pa-private: #8a1f3d;
+  --pa-private-soft: #fbeaf0;
+  --pa-danger: #d11a2a;
+  --pa-danger-soft: #fdebec;
+
+  --pa-skeleton: #efe8dd;
+  --pa-scrollbar-thumb: #d8cfbf;
+  --pa-scrollbar-thumb-hover: #c4b8a6;
+
+  --pa-radius-xs: 6px;
+  --pa-radius-sm: 8px;
+  --pa-radius-md: 10px;
+  --pa-radius-lg: 14px;
+  --pa-radius-xl: 18px;
+  --pa-radius-2xl: 22px;
+
+  --pa-shadow-subtle: 0 1px 2px rgba(11, 20, 43, 0.05);
+  --pa-shadow-card: 0 1px 2px rgba(11, 20, 43, 0.06), 0 8px 24px rgba(11, 20, 43, 0.04);
+  --pa-shadow-card-hover: 0 3px 8px rgba(11, 20, 43, 0.08), 0 14px 34px rgba(11, 20, 43, 0.08);
+  --pa-shadow-float: 0 12px 40px rgba(11, 20, 43, 0.14);
+  --pa-shadow-modal: 0 24px 80px rgba(11, 20, 43, 0.24);
+
+  --pa-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --pa-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --pa-motion-fast: 120ms;
+  --pa-motion-base: 180ms;
+  --pa-motion-slow: 240ms;
+  --pa-motion-page: 220ms;
+
+  /* Bridge for existing Tailwind semantic tokens */
+  --background: var(--pa-cream);
+  --foreground: var(--pa-text);
 }
 
-/* Dark Mode - Warmer & lighter for better readability */
+/* ── Prompt Archive Design System — Dark (archivo nocturno) ───────────── */
 .dark {
-  --background: #141b2d;
-  --foreground: #e2e8f0;
+  color-scheme: dark;
+  --pa-cream: #0b1020;
+  --pa-paper: #11182a;
+  --pa-surface: #172033;
+  --pa-border: #26324a;
+  --pa-border-strong: #33405c;
+
+  --pa-text: #e8edf7;
+  --pa-muted: #93a0b6;
+  --pa-muted-soft: #708097;
+
+  --pa-primary: #e8edf7;
+  --pa-primary-hover: #ffffff;
+  --pa-soft-blue: #172033;
+  --pa-icon-well: #1c2844;
+  --pa-icon-well-fg: #b8c8e4;
+  --pa-icon-well-border: #2d3d5c;
+
+  --pa-success-soft: rgba(22, 163, 106, 0.15);
+  --pa-warning-soft: rgba(217, 154, 43, 0.15);
+  --pa-json: #a78bfa;
+  --pa-json-soft: rgba(167, 139, 250, 0.12);
+  --pa-private: #b33a5b;
+  --pa-private-soft: rgba(179, 58, 91, 0.15);
+  --pa-danger-soft: rgba(209, 26, 42, 0.15);
+
+  --pa-skeleton: #1a2438;
+  --pa-scrollbar-thumb: #33405c;
+  --pa-scrollbar-thumb-hover: #445572;
+
+  --pa-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --pa-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32), 0 8px 24px rgba(0, 0, 0, 0.22);
+  --pa-shadow-card-hover: 0 3px 8px rgba(0, 0, 0, 0.36), 0 14px 34px rgba(0, 0, 0, 0.28);
+  --pa-shadow-float: 0 12px 40px rgba(0, 0, 0, 0.42);
+  --pa-shadow-modal: 0 24px 80px rgba(0, 0, 0, 0.55);
+
+  --background: var(--pa-cream);
+  --foreground: var(--pa-text);
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--pa-text);
+  background: var(--pa-cream);
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
+}
+
+main {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  animation: pa-page-in var(--pa-motion-page) var(--pa-ease-standard);
+  min-width: 0;
+  overflow-x: clip;
+}
+
+@utility sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@utility pa-section-in {
+  animation: pa-page-in var(--pa-motion-page) var(--pa-ease-standard);
+}
+
+@utility pa-section-icon-well {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--pa-radius-md);
+  border: 1px solid var(--pa-icon-well-border);
+  background: var(--pa-icon-well);
+  color: var(--pa-icon-well-fg);
+}
+
+@utility z-pa-modal {
+  z-index: 9100;
+}
+
+@utility z-pa-toast {
+  z-index: 9200;
+}
+
+@utility z-pa-sidebar-panel {
+  z-index: 9020;
+}
+
+@utility z-pa-sidebar-overlay {
+  z-index: 9010;
+}
+
+@utility z-pa-sidebar-toggle {
+  z-index: 9000;
+}
+
+@utility z-pa-fixed-content {
+  z-index: 50;
+}
+
+@utility z-pa-popover {
+  z-index: 40;
+}
+
+@utility z-pa-sticky {
+  z-index: 20;
+}
+
+@utility z-pa-tooltip {
+  z-index: 25;
 }
 
 @utility text-balance {
   text-wrap: balance;
+}
+
+@utility page-container {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 1280px;
+  padding-inline: 16px;
+  padding-block: 20px 80px;
+}
+
+@media (min-width: 640px) {
+  .page-container {
+    padding-inline: 24px;
+    padding-block: 24px 80px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-container {
+    padding-inline: 32px;
+    padding-block: 28px 80px;
+  }
 }
 
 /* Global cursor-pointer for interactive elements */
@@ -43,7 +290,7 @@ summary,
   cursor: pointer;
 }
 
-/* Custom Scrollbar */
+/* ── Scrollbar (warm archive tones) ───────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -54,61 +301,118 @@ summary,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--pa-scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--pa-scrollbar-thumb-hover);
 }
 
-.dark ::-webkit-scrollbar-thumb {
-  background: #2d3a52;
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #3d4f6f;
-}
-
-/* Scrollbar-none utility */
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
-/* Focus ring improvement */
-*:focus-visible {
-  outline: 2px solid #3b82f6;
+/* ── Focus visible (archive ink ring) ─────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--pa-primary);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
-/* Smooth page transitions */
-main {
-  animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
+/* ── Motion ───────────────────────────────────────────────────────────── */
+@keyframes pa-page-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
   }
+
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
-/* Selection color */
+@keyframes pa-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.pa-modal-in {
+  animation: pa-modal-in var(--pa-motion-slow) var(--pa-ease-emphasized);
+}
+
+.page-container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 32px;
+}
+
+.page-container-wide {
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 28px 32px;
+}
+
+@media (max-width: 640px) {
+  .page-container,
+  .page-container-wide {
+    padding: 20px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Text selection ───────────────────────────────────────────────────── */
 ::selection {
-  background: #3b82f6;
-  color: white;
+  background: var(--pa-primary);
+  color: var(--pa-paper);
 }
 
 .dark ::selection {
-  background: #60a5fa;
-  color: #0f172a;
+  background: var(--pa-muted);
+  color: var(--pa-cream);
 }
