@@ -60,6 +60,8 @@ Desktop.ini
 coverage/
 
 # === Electron desktop ===
-# Electron source code is not versioned; only the release (installer) in /release/
-/electron/
+# Desktop source is versioned (CI builds the installer); only build outputs stay local
 /release/win-unpacked/
+/electron/.turbo/
+!electron/build/
+!electron/build/icon.png
