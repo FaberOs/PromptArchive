@@ -58,3 +58,10 @@ Desktop.ini
 *.tsbuildinfo
 .vercel
 coverage/
+
+# === Electron desktop ===
+# Desktop source is versioned (CI builds the installer); only build outputs stay local
+/release/win-unpacked/
+/electron/.turbo/
+!electron/build/
+!electron/build/icon.png

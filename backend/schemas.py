@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Any, Dict
 from datetime import datetime
 from enum import Enum
@@ -25,16 +25,14 @@ class CategoryRead(CategoryBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     prompt_count: int = 0
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class TagBase(BaseModel):
     name: str
 
 class TagRead(TagBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Folders ---
 class FolderBase(BaseModel):
@@ -52,9 +50,9 @@ class FolderRead(FolderBase):
     id: int
     created_at: datetime
     is_hidden: bool = False
-    preview_images: List[str] = []
-    class Config:
-        from_attributes = True
+    preview_images: List[str] = Field(default_factory=list)
+    prompt_count: int = 0
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Images ---
 class ImageBase(BaseModel):
@@ -65,8 +63,7 @@ class ImageRead(ImageBase):
     filename: str
     created_at: datetime
     url: Optional[str] = None # Computed field for frontend
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Prompts ---
 class PositivePromptBase(BaseModel):
@@ -75,8 +72,7 @@ class PositivePromptBase(BaseModel):
 
 class PositivePromptRead(PositivePromptBase):
     id: int
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class PromptBase(BaseModel):
 
@@ -96,11 +92,13 @@ class PromptBase(BaseModel):
 
 class PromptCreate(PromptBase):
 
-    positive_prompts: List[str]  # List of strings for simplicity in creation
+    is_hidden: bool = False
 
-    categories: List[str]        # List of category names
+    positive_prompts: List[str] = Field(default_factory=list)  # List of strings for simplicity in creation
 
-    tags: List[str]              # List of tag names
+    categories: List[str] = Field(default_factory=list)        # List of category names
+
+    tags: List[str] = Field(default_factory=list)              # List of tag names
     
     parent_id: Optional[int] = None
     
@@ -110,11 +108,13 @@ class PromptCreate(PromptBase):
 
 class PromptUpdate(PromptBase):
 
-    positive_prompts: List[str]
+    is_hidden: Optional[bool] = None
 
-    categories: List[str]
+    positive_prompts: List[str] = Field(default_factory=list)
 
-    tags: List[str]
+    categories: List[str] = Field(default_factory=list)
+
+    tags: List[str] = Field(default_factory=list)
     
     folder_id: Optional[int] = None
 
@@ -133,20 +133,18 @@ class PromptRead(PromptBase):
 
     is_hidden: bool = False
 
-    positive_prompts: List[PositivePromptRead]
+    positive_prompts: List[PositivePromptRead] = Field(default_factory=list)
 
-    categories: List[CategoryRead]
+    categories: List[CategoryRead] = Field(default_factory=list)
 
-    tags: List[TagRead]
+    tags: List[TagRead] = Field(default_factory=list)
 
-    images: List[ImageRead]
+    images: List[ImageRead] = Field(default_factory=list)
 
     variant_count: int = 0
 
 
-    class Config:
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PaginatedPrompts(BaseModel):
@@ -156,13 +154,13 @@ class PaginatedPrompts(BaseModel):
 
 # --- Bulk Actions ---
 class BulkHideRequest(BaseModel):
-    prompt_ids: List[int] = []
-    folder_ids: List[int] = []
+    prompt_ids: List[int] = Field(default_factory=list)
+    folder_ids: List[int] = Field(default_factory=list)
     hidden: bool = True
 
 class BulkDeleteRequest(BaseModel):
-    prompt_ids: List[int] = []
-    folder_ids: List[int] = []
+    prompt_ids: List[int] = Field(default_factory=list)
+    folder_ids: List[int] = Field(default_factory=list)
 
 class BulkMoveRequest(BaseModel):
     prompt_ids: List[int] = []

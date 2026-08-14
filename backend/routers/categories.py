@@ -3,14 +3,28 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from .. import crud, schemas
+from ..auth import optional_private_session
 from ..deps import get_db
 
 router = APIRouter(tags=["Categories & Tags"])
 
 
 @router.get("/categories/", response_model=List[schemas.CategoryRead])
-def read_categories(search: Optional[str] = None, db: Session = Depends(get_db)):
-    return crud.get_categories(db, search=search)
+def read_categories(
+    search: Optional[str] = None,
+    nsfw: bool = False,
+    show_hidden: bool = False,
+    db: Session = Depends(get_db),
+    session: Optional[str] = Depends(optional_private_session),
+):
+    if (nsfw or show_hidden) and session is None:
+        raise HTTPException(status_code=401, detail="Private library authentication required")
+    return crud.get_categories(
+        db,
+        search=search,
+        is_nsfw=nsfw,
+        show_hidden=show_hidden,
+    )
 
 
 @router.post("/categories/", response_model=schemas.CategoryRead)

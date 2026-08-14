@@ -1,35 +1,57 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { Info } from 'lucide-react';
+import { useId, useState } from "react";
+import { Info } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export function InfoTip({ text }: { text: string }) {
+interface InfoTipProps {
+  text: string;
+  className?: string;
+}
+
+export function InfoTip({ text, className }: InfoTipProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
+  const tooltipId = useId();
 
   return (
-    <span className="relative inline-flex" ref={ref}>
+    <span className={cn("relative inline-flex", className)}>
+      {open && <span className="fixed inset-0 z-pa-tooltip" onClick={() => setOpen(false)} aria-hidden />}
+
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="ml-1 text-slate-300 hover:text-slate-500 dark:text-slate-500 dark:hover:text-slate-300 transition-colors focus:outline-none group"
-        aria-label="Info"
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setOpen(false);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+        }}
+        aria-label="More information"
+        aria-expanded={open}
+        aria-describedby={open ? tooltipId : undefined}
+        className={cn(
+          "group relative ml-1 rounded-sm text-pa-muted-soft transition-colors",
+          open && "z-pa-tooltip",
+          "hover:text-pa-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pa-primary/30",
+        )}
       >
-        <Info className="w-3.5 h-3.5" />
+        <Info className="h-3.5 w-3.5" strokeWidth={1.8} />
       </button>
+
       {open && (
-        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 px-3 py-2 text-[11px] leading-relaxed text-slate-100 bg-slate-800 dark:bg-slate-700 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150">
+        <span
+          id={tooltipId}
+          role="tooltip"
+          className={cn(
+            "pointer-events-none absolute bottom-full left-1/2 z-pa-tooltip mb-2 w-56 -translate-x-1/2",
+            "rounded-pa-sm border border-pa-border bg-pa-ink px-3 py-2 text-[11px] leading-relaxed text-pa-paper shadow-pa-float",
+            "dark:border-pa-border-strong dark:bg-pa-surface dark:text-pa-text",
+          )}
+        >
           {text}
-          <span className="absolute left-1/2 -translate-x-1/2 top-full -mt-px border-4 border-transparent border-t-slate-800 dark:border-t-slate-700" />
+          <span className="absolute left-1/2 top-full -mt-px -translate-x-1/2 border-4 border-transparent border-t-pa-ink dark:border-t-pa-surface" />
         </span>
       )}
     </span>

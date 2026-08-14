@@ -1,62 +1,106 @@
-import { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+"use client";
+
+import { useId, useRef, useCallback, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { focusInitialElement, trapFocus } from "@/lib/a11y";
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
+  description?: string;
+  describedById?: string;
   children: React.ReactNode;
   className?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, className }: ModalProps) {
+export function Modal({ isOpen, onClose, title, description, describedById, children, className }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+  const setDialogRef = useCallback((node: HTMLDivElement | null) => {
+    dialogRef.current = node;
+    if (node) focusInitialElement(node);
+  }, []);
 
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden'; // Prevent scrolling
+  const handleDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      onClose();
+      return;
     }
 
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, onClose]);
+    if (dialogRef.current) {
+      trapFocus(event, dialogRef.current);
+    }
+  };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
-    <div 
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-4"
-        onClick={(e) => {
-            if (e.target === overlayRef.current) onClose();
+  return createPortal(
+    <>
+      <style>{`body { overflow: hidden; }`}</style>
+
+      <div
+        className="fixed inset-0 z-pa-modal flex items-end justify-center bg-pa-ink/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+        onClick={(event) => {
+          if (event.target === overlayRef.current) onClose();
         }}
         ref={overlayRef}
-    >
-      <div className={cn(
-          "bg-white dark:bg-[#1e293b] w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700/50 transform transition-all scale-100 flex flex-col max-h-[90vh]",
-          className
-      )}>
-        <div className="flex items-center justify-between p-6 pb-0">
-            {title && <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">{title}</h2>}
-            <button 
-                onClick={onClose}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-full transition-colors ml-auto cursor-pointer"
+        role="presentation"
+      >
+        <div
+          ref={setDialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={title ? titleId : undefined}
+          aria-describedby={describedById ?? (description ? descriptionId : undefined)}
+          tabIndex={-1}
+          onKeyDown={handleDialogKeyDown}
+          className={cn(
+            "pa-modal-in flex max-h-[min(90dvh,100%)] w-full min-w-0 max-w-md flex-col outline-none",
+            "rounded-t-pa-2xl border border-pa-border bg-pa-paper shadow-pa-modal sm:max-h-[90vh] sm:rounded-pa-2xl",
+            className,
+          )}
+        >
+          <div className="flex items-center justify-between p-6 pb-0">
+            {title && (
+              <h2 id={titleId} className="text-xl font-bold text-pa-text">
+                {title}
+              </h2>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close dialog"
+              className={cn(
+                "ml-auto rounded-full p-2 text-pa-muted-soft transition-colors",
+                "hover:bg-pa-surface hover:text-pa-text",
+              )}
             >
-                <X className="w-5 h-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
-        </div>
-        
-        <div className="p-6 overflow-y-auto">
-            {children}
+          </div>
+
+          {description ? (
+            <p id={descriptionId} className="sr-only">
+              {description}
+            </p>
+          ) : null}
+
+          <div className="overflow-y-auto p-6">{children}</div>
         </div>
       </div>
-    </div>
+    </>,
+    document.body,
   );
 }

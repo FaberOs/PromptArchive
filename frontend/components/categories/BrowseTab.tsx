@@ -1,14 +1,17 @@
 "use client";
 
-import type { Prompt } from '@/lib/types';
-import { Button } from '@/components/ui/Button';
-import { SearchInput } from '@/components/library/SearchInput';
-import CategorySelector from '@/components/CategorySelector';
-import PromptCard from '@/components/PromptCard';
-import { PromptCardSkeleton } from '@/components/skeletons/PromptCardSkeleton';
-import { Filter } from 'lucide-react';
+import type { Prompt } from "@/lib/types";
+import type { CategoryItem } from "@/hooks/useCategories";
+import { Button } from "@/components/ui/Button";
+import { SearchInput } from "@/components/library/SearchInput";
+import PromptCard from "@/components/PromptCard";
+import { PromptCardSkeleton } from "@/components/skeletons/PromptCardSkeleton";
+import { EmptyStateBlock } from "@/components/ui/EmptyStateBlock";
+import { Filter } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface BrowseTabProps {
+  categories: CategoryItem[];
   selectedFilters: string[];
   onFiltersChange: (filters: string[]) => void;
   search: string;
@@ -23,6 +26,7 @@ interface BrowseTabProps {
 }
 
 export function BrowseTab({
+  categories,
   selectedFilters,
   onFiltersChange,
   search,
@@ -35,54 +39,93 @@ export function BrowseTab({
   fetchNextPage,
   onMove,
 }: BrowseTabProps) {
+  const selectedFilterSet = new Set(selectedFilters);
+  const toggleCategory = (name: string) => {
+    if (name === "All") {
+      onFiltersChange([]);
+      return;
+    }
+    if (selectedFilterSet.has(name)) {
+      onFiltersChange(selectedFilters.filter((f) => f !== name));
+    } else {
+      onFiltersChange([...selectedFilters, name]);
+    }
+  };
+
+  const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name));
+
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      {/* Filters */}
-      <div className="bg-white dark:bg-slate-800/60 p-5 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-100 dark:border-slate-700/40">
-          <Filter className="w-4 h-4" /> Filter by Category
+    <div className="pa-section-in space-y-6">
+      <SearchInput
+        value={search}
+        onChange={onSearchChange}
+        placeholder="Search prompts or categories..."
+        className="max-w-xl"
+      />
+
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-pa-text">
+          <Filter className="h-4 w-4 text-pa-muted-soft" />
+          Category filter
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs text-slate-500 mb-1 block">Categories (Combine to refine)</label>
-            <CategorySelector selected={selectedFilters} onChange={onFiltersChange} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-500 mb-1 block">Search Prompts</label>
-            <SearchInput value={search} onChange={onSearchChange} placeholder="Search by title or text..." />
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => toggleCategory("All")}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              selectedFilters.length === 0
+                ? "border-pa-primary bg-pa-primary text-pa-paper"
+                : "border-pa-border bg-pa-paper text-pa-muted hover:border-pa-border-strong hover:text-pa-text",
+            )}
+          >
+            All
+          </button>
+          {sortedCategories.map((category) => {
+            const active = selectedFilterSet.has(category.name);
+            return (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => toggleCategory(category.name)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  active
+                    ? "border-pa-primary bg-pa-primary text-pa-paper"
+                    : "border-pa-border bg-pa-paper text-pa-muted hover:border-pa-border-strong hover:text-pa-text",
+                )}
+              >
+                {category.name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Results */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <PromptCardSkeleton key={i} />
           ))}
         </div>
       ) : prompts.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-700/60 mb-4">
-            <Filter className="w-8 h-8 text-slate-400" />
-          </div>
-          <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">
-            No prompts found matching criteria
-          </h3>
-          <p className="text-slate-500">Try removing some filters.</p>
-        </div>
+        <EmptyStateBlock
+          icon={<Filter className="h-7 w-7 text-pa-muted-soft" strokeWidth={1.8} />}
+          title="No prompts found matching criteria"
+          description="Try removing some filters or broadening your search."
+        />
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {prompts.map((p) => (
-              <PromptCard key={p.id} prompt={p} onMove={onMove} />
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {prompts.map((prompt) => (
+              <PromptCard key={prompt.id} prompt={prompt} onMove={onMove} />
             ))}
           </div>
 
           {hasNextPage && (
             <div className="flex justify-center pt-4">
               <Button variant="outline" onClick={() => fetchNextPage()} isLoading={isFetchingNextPage}>
-                {isFetchingNextPage ? 'Loading...' : `Load More (${prompts.length} of ${total})`}
+                {isFetchingNextPage ? "Loading..." : `Load More (${prompts.length} of ${total})`}
               </Button>
             </div>
           )}

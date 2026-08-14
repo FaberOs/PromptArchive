@@ -41,8 +41,8 @@ DEFAULT_CATEGORIES = [
 
 
 def seed_categories() -> None:
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         count = db.query(models.Category).count()
         if count == 0:
             logger.info("Seeding default categories...")
@@ -51,6 +51,9 @@ def seed_categories() -> None:
                 db.add(db_cat)
             db.commit()
             logger.info("Categories seeded.")
-        db.close()
     except Exception as e:
         logger.error("Seeding failed: %s", e)
+        db.rollback()
+        raise
+    finally:
+        db.close()

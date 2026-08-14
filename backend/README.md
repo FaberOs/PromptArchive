@@ -112,48 +112,48 @@ backend/
 
 ### Prompts
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/prompts/` | List prompts (with search, folder, NSFW filters) |
-| `POST` | `/prompts/` | Create a new prompt |
-| `GET` | `/prompts/{id}` | Get prompt by ID (with relations) |
-| `PUT` | `/prompts/{id}` | Update a prompt |
-| `DELETE` | `/prompts/{id}` | Delete a prompt and its images |
-| `POST` | `/prompts/{id}/images` | Upload an image to a prompt |
-| `DELETE` | `/prompts/{id}/images/{image_id}` | Delete a specific image |
+| Method   | Endpoint                          | Description                                      |
+| -------- | --------------------------------- | ------------------------------------------------ |
+| `GET`    | `/prompts/`                       | List prompts (with search, folder, NSFW filters) |
+| `POST`   | `/prompts/`                       | Create a new prompt                              |
+| `GET`    | `/prompts/{id}`                   | Get prompt by ID (with relations)                |
+| `PUT`    | `/prompts/{id}`                   | Update a prompt                                  |
+| `DELETE` | `/prompts/{id}`                   | Delete a prompt and its images                   |
+| `POST`   | `/prompts/{id}/images`            | Upload an image to a prompt                      |
+| `DELETE` | `/prompts/{id}/images/{image_id}` | Delete a specific image                          |
 
 ### Folders
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/folders/` | List all folders (filterable by NSFW) |
-| `POST` | `/folders/` | Create a new folder |
-| `PUT` | `/folders/{id}` | Rename a folder |
-| `DELETE` | `/folders/{id}` | Delete a folder |
+| Method   | Endpoint        | Description                           |
+| -------- | --------------- | ------------------------------------- |
+| `GET`    | `/folders/`     | List all folders (filterable by NSFW) |
+| `POST`   | `/folders/`     | Create a new folder                   |
+| `PUT`    | `/folders/{id}` | Rename a folder                       |
+| `DELETE` | `/folders/{id}` | Delete a folder                       |
 
 ### Categories
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/categories/` | List all categories with prompt count |
-| `POST` | `/categories/` | Create a new category |
-| `PUT` | `/categories/{id}` | Update a category |
-| `DELETE` | `/categories/{id}` | Delete a category |
+| Method   | Endpoint           | Description                           |
+| -------- | ------------------ | ------------------------------------- |
+| `GET`    | `/categories/`     | List all categories with prompt count |
+| `POST`   | `/categories/`     | Create a new category                 |
+| `PUT`    | `/categories/{id}` | Update a category                     |
+| `DELETE` | `/categories/{id}` | Delete a category                     |
 
 ### Settings
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/settings/pin/status` | Check if PIN is configured |
-| `POST` | `/settings/pin/verify` | Verify a PIN |
-| `POST` | `/settings/pin` | Set or update the PIN |
-| `POST` | `/settings/pin/reset` | Reset the PIN |
+| Method | Endpoint               | Description                |
+| ------ | ---------------------- | -------------------------- |
+| `GET`  | `/settings/pin/status` | Check if PIN is configured |
+| `POST` | `/settings/pin/verify` | Verify a PIN               |
+| `POST` | `/settings/pin`        | Set or update the PIN      |
+| `POST` | `/settings/pin/reset`  | Reset the PIN              |
 
 ### Static Files
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/static/{prompt_id}/{filename}` | Serve uploaded images |
+| Method | Endpoint                         | Description           |
+| ------ | -------------------------------- | --------------------- |
+| `GET`  | `/static/{prompt_id}/{filename}` | Serve uploaded images |
 
 ---
 
@@ -191,14 +191,14 @@ app_config
 
 ## 🧩 Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| `fastapi` | Async REST framework with auto-docs |
-| `uvicorn` | High-performance ASGI server |
-| `sqlalchemy` | ORM & database toolkit |
-| `pydantic` | Request/response validation |
-| `python-multipart` | Multipart form data (file uploads) |
-| `Pillow` | Image processing & validation |
+| Package            | Purpose                             |
+| ------------------ | ----------------------------------- |
+| `fastapi`          | Async REST framework with auto-docs |
+| `uvicorn`          | High-performance ASGI server        |
+| `sqlalchemy`       | ORM & database toolkit              |
+| `pydantic`         | Request/response validation         |
+| `python-multipart` | Multipart form data (file uploads)  |
+| `Pillow`           | Image processing & validation       |
 
 ---
 
